@@ -11,6 +11,8 @@ package edu.ufl.cise.cop4020fa23;
 
 import static edu.ufl.cise.cop4020fa23.Kind.EOF;
 
+import java.sql.SQLOutput;
+import java.util.regex.*;
 import edu.ufl.cise.cop4020fa23.exceptions.LexicalException;
 
 
@@ -21,38 +23,18 @@ public class Lexer implements ILexer {
 
 	@Override
 	public IToken next() throws LexicalException {
+		Pattern whitespacePattern = Pattern.compile("[\\r\\n]+");
+		Pattern letterPattern = Pattern.compile("[A-Za-z]");
+		Pattern bracketPattern = Pattern.compile("[\\[\\]{}()<>]");
+		Pattern numberPattern = Pattern.compile("-?\\\\d+");
 
-
-		//Create array of string chars
-		char [] ch = input.toCharArray();
-
-		for (int i = 0; i < ch.length; i++){
-
-			char curr = ch[i];
-
-			//check for whitespace
-
-
-			//Letter
-			if (curr == ) {
-
-			}
+		Matcher matcher =  letterPattern.matcher(input);
 
 
 
-
-
-
+		while (matcher.find()){
+			System.out.println("Letter literal found at position " + matcher.start() + ": " + matcher.group());
 		}
-
-
-		//Detect whitespace
-
-
-
-
-
-
 
 		return new Token(EOF, 0, 0, null, new SourceLocation(1, 1));
 	}
