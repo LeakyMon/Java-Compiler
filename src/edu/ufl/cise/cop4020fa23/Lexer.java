@@ -22,38 +22,6 @@ public class Lexer implements ILexer {
 	@Override
 	public IToken next() throws LexicalException {
 
-
-		//Create array of string chars
-		char [] ch = input.toCharArray();
-
-		for (int i = 0; i < ch.length; i++){
-
-			char curr = ch[i];
-
-			//check for whitespace
-
-
-			//Letter
-			if (curr == ) {
-
-			}
-
-
-
-
-
-
-		}
-
-
-		//Detect whitespace
-
-
-
-
-
-
-
 		return new Token(EOF, 0, 0, null, new SourceLocation(1, 1));
 	}
 
