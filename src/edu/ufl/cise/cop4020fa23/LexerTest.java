@@ -290,7 +290,7 @@ class LexerTest {
 		checkToken(AND, "&&", 2, 7, lexer.next());
 		checkEOF(lexer.next());
 	}
-	/*
+
 	@Test
 	void test6() throws LexicalException {
 		String input = """
@@ -307,7 +307,7 @@ class LexerTest {
 		checkToken(COMMA,lexer.next());
 		checkEOF(lexer.next());
 	}
-	
+
 	@Test
 	void test7() throws LexicalException {
 		String input = """
@@ -330,7 +330,7 @@ class LexerTest {
 		checkToken(GT, lexer.next());
 		checkEOF(lexer.next());
 	}
-	
+
 	@Test
 	void test8() throws LexicalException {
 		String input = """
@@ -347,7 +347,7 @@ class LexerTest {
 		checkToken(CONST,"BLACK", lexer.next());
 		checkEOF(lexer.next());
 	}
-	
+
 	@Test
 	void test8a() throws LexicalException {
 		String input = """
@@ -361,7 +361,7 @@ class LexerTest {
 		checkToken(CONST,"RED", lexer.next());
 		checkEOF(lexer.next());
 	}
-	
+
 //	@Test
 //	void test9() throws LexicalException {
 //		String input = """
@@ -411,7 +411,7 @@ class LexerTest {
        	checkNumLit("0",lexer.next());
        	checkNumLit("10",lexer.next());      	
     }
-    
+    /*
     
     /** 
      * This test shows how to write a test that will pass only if a LexicalExcption is thrown.

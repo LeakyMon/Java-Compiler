@@ -1,3 +1,4 @@
+//
 /*Copyright 2023 by Beverly A Sanders
  *
  * This code is provided for solely for use of students in COP4020 Programming Language Concepts at the
@@ -8,29 +9,24 @@
  * This code may not be posted on a public web site either during or after the course.
  */
 package edu.ufl.cise.cop4020fa23;
+
+import static edu.ufl.cise.cop4020fa23.Kind.EOF;
+
 import edu.ufl.cise.cop4020fa23.exceptions.LexicalException;
 
-import javax.xml.transform.Source;
 
 public class Lexer implements ILexer {
 
-	//Create variables for position, column, line, and source
-	private int pos;
-	private int column;
-	private int line;
-	private final char[] source;
-
-	public Lexer(String input)
-	{
-		//Initialize variables
-		this.source = input.toCharArray();
-		this.pos = 0;
-		this.line = 1;
-		this.column = 1;
-	}
+	String input;
+	public Lexer(String input) {this.input = input;}
 
 	@Override
-	public Token next() throws LexicalException {
-		return new Token(Kind.EOF, pos, 0, source, new SourceLocation(line, column));
+	public IToken next() throws LexicalException {
+
+		return new Token(EOF, 0, 0, null, new SourceLocation(1, 1));
 	}
+
+
+
+
 }
