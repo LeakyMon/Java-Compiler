@@ -15,6 +15,7 @@ import static edu.ufl.cise.cop4020fa23.Kind.EOF;
 import edu.ufl.cise.cop4020fa23.exceptions.LexicalException;
 
 
+
 public class Lexer implements ILexer {
 
 	String input;
