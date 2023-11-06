@@ -531,8 +531,6 @@ class LexerTest {
 		ILexer lexer = ComponentFactory.makeLexer(input);
 		//quotes escaped because quotation marks must be stored
 		checkToken(STRING_LIT,"\"this\"", 1, 1, lexer.next());
-
-
 		checkToken(STRING_LIT,"\"test\"", 2, 2, lexer.next());
 		checkToken(STRING_LIT,"\"case\"", 3, 3, lexer.next());
 		checkToken(STRING_LIT,"\"should*($)%*)\"", 4, 4, lexer.next());
@@ -561,13 +559,11 @@ class LexerTest {
 			lexer.next();
 		});
 	}
-	@Test
+	//WHY DOES THIS THROW AN EXCEPTION?
 	void test25() throws Exception {
 		String input = """
          ##␡
          """;
-
-
 		ILexer lexer = ComponentFactory.makeLexer(input);
 		LexicalException e = assertThrows(LexicalException.class, ()-> {
 			lexer.next();
@@ -615,9 +611,6 @@ class LexerTest {
 		checkIdent("REDred",lexer.next());
 		checkToken(RES_red, "red", lexer.next()); // red is not a CONST, although RED is
 	}
-
-
-
 
 	@Test
 	void test29() throws Exception {

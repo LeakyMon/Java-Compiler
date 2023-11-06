@@ -21,6 +21,7 @@ public class Lexer implements ILexer {
 	private int column;
 	private int line;
 	private final char[] source;
+	private boolean newlineseen;
 	//VARIABLE TO HELP HANDLE COMMENTS
 	private final static char EOF_CHAR = '\0';
 
@@ -31,6 +32,7 @@ public class Lexer implements ILexer {
 		this.pos = 0;
 		this.line = 1;
 		this.column = 1;
+		this.newlineseen = false;
 	}
 	@Override
 	public Token next() throws LexicalException {
@@ -51,9 +53,9 @@ public class Lexer implements ILexer {
 					throw new LexicalException("Illegal character '" + ch + "' at line " + line + ", column " + column);
 
 				}
-				// If it's not a double hash, then it might be some other token or an error
-				// Handle it accordingly (for example, throw an exception or return a token)
 			}
+
+
 
 			if (Character.isDigit(ch)) {
 				return scanNumber();
@@ -66,7 +68,7 @@ public class Lexer implements ILexer {
 			switch (ch) {
 				case ',':
 					increment();
-					return new Token(Kind.COMMA, pos - 1, 1, source, new SourceLocation(line, column));
+					return new Token(Kind.COMMA, pos - 1, 1, source, new SourceLocation(line, column - 1));
 				//CASES WITH DOUBLE POSIBILITES IE BOX, <<, ECT...
 				case '[':
 					increment();
@@ -100,6 +102,13 @@ public class Lexer implements ILexer {
 						return new Token(Kind.RARROW, pos - 2, 2, source, new SourceLocation(line, column));
 					}
 					return new Token(Kind.MINUS, pos - 1, 1, source, new SourceLocation(line, column));
+				case '*':
+					increment();
+					if (peek() == '*'){
+						increment();
+						return new Token(Kind.EXP, pos-2, 2, source, new SourceLocation(line, column));
+					}
+					return new Token(Kind.TIMES, pos - 1, 1, source, new SourceLocation(line, column));
 				case '|':
 					increment();
 					if (peek() == '|'){
@@ -119,6 +128,9 @@ public class Lexer implements ILexer {
 					}
 					return new Token(Kind.BITAND, pos - 1, 1, source, new SourceLocation(startLine, startColumn));
 
+				case '^':
+					increment();
+					return new Token(Kind.RETURN, pos - 1, 1, source, new SourceLocation(line, column));
 				case '(':
 					increment();
 					return new Token(Kind.LPAREN, pos - 1, 1, source, new SourceLocation(line, column));
@@ -141,9 +153,7 @@ public class Lexer implements ILexer {
 				case '%':
 					increment();
 					return new Token(Kind.MOD, pos - 1, 1, source, new SourceLocation(line, column));
-				case '*':
-					increment();
-					return new Token(Kind.TIMES, pos - 1, 1, source, new SourceLocation(line, column));
+
 				case '/':
 					increment();
 					return new Token(Kind.DIV, pos - 1, 1, source, new SourceLocation(line, column));
@@ -155,7 +165,7 @@ public class Lexer implements ILexer {
 					return new Token(Kind.BANG, pos - 1, 1, source, new SourceLocation(line, column));
 				case ';':
 					increment();
-					return new Token(Kind.SEMI, pos - 1, 1, source, new SourceLocation(line, column));
+					return new Token(Kind.SEMI, pos - 1, 1, source, new SourceLocation(line, column - 1));
 				case ':':
 					increment();
 					if (peek() == '>'){
@@ -174,12 +184,13 @@ public class Lexer implements ILexer {
 	}
 	//SKIP COMMENTS
 	private void skipComment() {
-		if (peek() == '#' && peekNext() == '#') {
-			while (peek() != '\n' && peek() != EOF_CHAR) {
-				increment(); // This consumes the character.
-			}
-			increment(); // This consumes the newline or acts as a no-op at EOF
+		while (peek() != '\n' && peek() != EOF_CHAR) {
+			increment(); // This consumes the character.
 		}
+		if (peek() == '\n') { // Only increment if there is a newline character to consume.
+			increment(); // This consumes the newline
+		}
+
 	}
 	//DOUBLE PEEK
 	private char peekNext() {
@@ -188,13 +199,16 @@ public class Lexer implements ILexer {
 	//SKIPWHITESPACE
 	private void skipWhiteSpace() {
 		while (!isEOF() && Character.isWhitespace(peek())) {
-			if (peek() == '\n') {
-				column = 0;   // Reset column number at the start of a new line
-				increment();  // Consume the newline character
-			} else {
-				increment();  // Consume other whitespace characters
-			}
+			increment();
+			//if (peek() == '\n') {
+			//	column = 0;
+			//	line++; // Reset column number at the start of a new line
+			//	increment();  // Consume the newline character
+			//} else {
+			//	increment();  // Consume other whitespace characters
+			//}
 		}
+		handleNewLineSeen();
 	}
 	//SCAN NUMBER
 	private Token scanNumber() throws LexicalException {
@@ -228,6 +242,11 @@ public class Lexer implements ILexer {
 		if (identifier.equals("TRUE") || identifier.equals("FALSE")) {
 			return new Token(Kind.BOOLEAN_LIT, startPos, pos - startPos, source, new SourceLocation(line, startColumn));
 		}
+		if (checkReservedWords(identifier)){
+			if (identifier.equals("red")){return new Token(Kind.RES_red, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("blue")){return new Token(Kind.RES_blue, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("green")){return new Token(Kind.RES_green, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+		}
 
 		if (isConstant(identifier)) {
 			return new Token(Kind.CONST, startPos, pos - startPos, source, new SourceLocation(line, startColumn));
@@ -237,6 +256,15 @@ public class Lexer implements ILexer {
 		return new Token(Kind.IDENT, startPos, pos - startPos, source, new SourceLocation(line, startColumn));
 	}
 
+	private boolean checkReservedWords(String identifier){
+		boolean temp = false;
+		if (identifier.equals("red") || identifier.equals("blue") || identifier.equals("green")){
+
+			temp = true;
+			return temp;
+		}
+		return temp;
+	}
 
 	private boolean isConstant(String identifier) {
 		//SWITCH CASE TO FIND THE IDENTIFIER IF ITS CONSTANT
@@ -264,14 +292,41 @@ public class Lexer implements ILexer {
 	private Token scanString() throws LexicalException {
 		int startPos = pos;
 		increment(); // to account for the opening quote mark
+		StringBuilder stringValue = new StringBuilder();
 		while (peek() != '"' && !isEOF()) {
-			increment();
+			if (isInvalidChar(peek())) {
+				throw new LexicalException("Illegal character in string literal at line: " + line + ", column: " + column);
+			}
+			if (peek() == '\\' && peekNext() == 's') {
+				stringValue.append(' '); // Handle \s escape sequence as space
+				increment(); // Skip backslash
+				increment(); // Skip 's'
+			}
+			else if (peek() == '\\' && peekNext() == '\\') {
+				stringValue.append(' '); // Handle \s escape sequence as space
+				increment(); // Skip backslash
+				increment(); // Skip 's'
+			}
+			else if (peek() == '\n' || peek() == '\r') {
+				// If you encounter a newline or carriage return before the closing quote, throw an exception
+				throw new LexicalException("String literal not closed on the same line");
+			}
+
+			else {
+				stringValue.append(source[pos]);
+				increment();
+			}
+			//increment();
 		}
 		if (isEOF()) {
 			throw new LexicalException("Unterminated string. Line: " + line + ", Column: " + column);
 		}
 		increment(); // consume the closing quote
-		String stringValue = new String(source, startPos + 1, pos - startPos - 2); // +1 and -2 to exclude quotes
+
+
+	//	String stringValue = new String(source, startPos, pos - startPos); // +1 and -2 to exclude quotes
+
+		//String stringValue = new String(source, startPos + 1, pos - startPos - 2); // +1 and -2 to exclude quotes
 		return new Token(Kind.STRING_LIT, startPos, pos - startPos, source, new SourceLocation(line, column));
 	}
 
@@ -287,13 +342,33 @@ public class Lexer implements ILexer {
 	private void increment() {
 		pos++; // Move to the next char pos
 		if (pos < source.length && source[pos] == '\n') {
-			line++;
-			column = 0; // Column Reset
+			//line++;
+			//column = 1; // Column Reset
+			newlineseen = true;
 		} else {
-			column++; // Increment column for next char
+			if (!newlineseen) {
+				column++;
+			}
+			//column++; // Increment column for next char
 		}
+	}
+	private void handleNewLineSeen(){
+		if (newlineseen){
+			line++;
+			column = 1;
+			newlineseen = false;
+		}
+	}
+	private boolean isInvalidChar(char c){
+		String validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ$_+0123456789@#&%";
+		if (validChars.indexOf(c) == -1) {
+
+			return true;
+		}
+		return false; // It is a valid character
 	}
 	private boolean isEOF() {
 		return pos >= source.length;
 	}
+
 }
