@@ -66,7 +66,6 @@ public enum Kind {
 	RARROW, // ->
 	BOX, //  []
 	EOF,
-	DOT,
 	ERROR;
 
 	

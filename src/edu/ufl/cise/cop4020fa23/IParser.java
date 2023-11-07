@@ -9,12 +9,9 @@
  */
 package edu.ufl.cise.cop4020fa23;
 
-/**
- * IMPLEMENTATIONS of IToken should override equals and hashcode
- */
-public interface IToken {
-	
-	public SourceLocation sourceLocation();
-	public Kind kind();
-	public String text();
+import edu.ufl.cise.cop4020fa23.ast.AST;
+import edu.ufl.cise.cop4020fa23.exceptions.PLCCompilerException;
+
+public interface IParser {
+    AST parse() throws PLCCompilerException;
 }
