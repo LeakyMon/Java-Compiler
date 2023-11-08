@@ -200,13 +200,6 @@ public class Lexer implements ILexer {
 	private void skipWhiteSpace() {
 		while (!isEOF() && Character.isWhitespace(peek())) {
 			increment();
-			//if (peek() == '\n') {
-			//	column = 0;
-			//	line++; // Reset column number at the start of a new line
-			//	increment();  // Consume the newline character
-			//} else {
-			//	increment();  // Consume other whitespace characters
-			//}
 		}
 		handleNewLineSeen();
 	}
