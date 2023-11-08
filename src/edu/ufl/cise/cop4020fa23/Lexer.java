@@ -37,7 +37,6 @@ public class Lexer implements ILexer {
 	@Override
 	public Token next() throws LexicalException {
 		while (true) {
-
 			skipWhiteSpace();
 			if (isEOF()) {
 				return new Token(Kind.EOF, pos, 0, source, new SourceLocation(line, column));
@@ -55,8 +54,6 @@ public class Lexer implements ILexer {
 				}
 			}
 
-
-
 			if (Character.isDigit(ch)) {
 				return scanNumber();
 			}
@@ -64,6 +61,7 @@ public class Lexer implements ILexer {
 			if (Character.isLetter(ch)) {
 				return scanIdentifierOrKeyword();
 			}
+
 			//Switch case for each character
 			switch (ch) {
 				case ',':
@@ -78,6 +76,18 @@ public class Lexer implements ILexer {
 						return new Token(Kind.BOX, pos - 2, 2, source, new SourceLocation(line, column));
 					}
 					return new Token(Kind.LSQUARE, pos - 1, 1, source, new SourceLocation(line, column));
+				case '_':
+					increment();
+					char tempCh = ch;
+					tempCh = peekNext();
+					if (Character.isLetter(tempCh)){
+						//return new Token(Kind.IDENT, pos - 1, 1, source, new SourceLocation(line, column));
+						return scanIdentifierOrKeyword();
+					}
+					else{
+						return new Token(Kind.IDENT, pos - 1, 1, source, new SourceLocation(line, column));
+					}
+
 				case '<':
 					increment();
 					if (peek() == '=') {
@@ -139,7 +149,7 @@ public class Lexer implements ILexer {
 					return new Token(Kind.RPAREN, pos - 1, 1, source, new SourceLocation(line, column));
 				case '+':
 					increment();
-					return new Token(Kind.PLUS, pos - 1, 1, source, new SourceLocation(line, column));
+					return new Token(Kind.PLUS, pos - 1, 1, source, new SourceLocation(line, column - 1));
 				case '>':
 					increment();
 					if (peek() == '=') {
@@ -198,38 +208,62 @@ public class Lexer implements ILexer {
 	}
 	//SKIPWHITESPACE
 	private void skipWhiteSpace() {
+
 		while (!isEOF() && Character.isWhitespace(peek())) {
+			if (peek() == '\n') {
+				//line++;
+				column = 1; // Reset column number at the start of a new line
+				newlineseen = true;
+			}
 			increment();
 		}
-		handleNewLineSeen();
 	}
 	//SCAN NUMBER
 	private Token scanNumber() throws LexicalException {
 		int startPos = pos;
 		if (peek() == '0') { // If the number starts with 0, treat it as a separate token
-			increment();
+			//But if its 0 after a digit before then continue.
+			if (pos < source.length && source[pos] == '\n'){
+				newlineseen = true;
+			}
+			else {
+				pos++;
+			}
 			return new Token(Kind.NUM_LIT, startPos, pos - startPos, source, new SourceLocation(line, column));
+
+		}
+		int startCol = 1;
+		if (Character.isDigit(peek())){
+			startCol = column + 1;
 		}
 		while (Character.isDigit(peek())) {
 			increment();
 		}
 		String numStr = new String(source, startPos, pos - startPos);
 		//TO MAKE SURE INTEGER IS IN RANGE
+
 		try {
 			Integer.parseInt(numStr);
 		} catch (NumberFormatException e) {
 			throw new LexicalException("Number out of range at line " + line + ", column " + column);
 		}
-		return new Token(Kind.NUM_LIT, startPos, pos - startPos, source, new SourceLocation(line, column));
+		if (numStr.length() == 1){
+			startCol = startCol -1;
+			return new Token(Kind.NUM_LIT, startPos, pos - startPos, source, new SourceLocation(line, startCol));
+
+		}
+		return new Token(Kind.NUM_LIT, startPos, pos - startPos, source, new SourceLocation(line, startCol));
 	}
 	private Token scanIdentifierOrKeyword() throws LexicalException {
 		int startPos = pos;
+
 		int startColumn = column - (pos - startPos); //Pos - startPos to find length
 		if (!Character.isLetter(peek())) {
 			throw new LexicalException("Unterminated string. Line: " + line + ", Column: " + column);
 		}
 		while (Character.isLetterOrDigit(peek()) || peek() == '_') {
 			increment();
+
 		}
 		String identifier = new String(source, startPos, pos - startPos);
 		if (identifier.equals("TRUE") || identifier.equals("FALSE")) {
@@ -239,6 +273,21 @@ public class Lexer implements ILexer {
 			if (identifier.equals("red")){return new Token(Kind.RES_red, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
 			else if (identifier.equals("blue")){return new Token(Kind.RES_blue, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
 			else if (identifier.equals("green")){return new Token(Kind.RES_green, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("if")){return new Token(Kind.RES_if, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("fi")){return new Token(Kind.RES_fi, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("height")){return new Token(Kind.RES_height, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("do")){return new Token(Kind.RES_do, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("od")){return new Token(Kind.RES_od, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("image")){return new Token(Kind.RES_image, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("pixel")){return new Token(Kind.RES_pixel, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("width")){return new Token(Kind.RES_width, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("nil")){return new Token(Kind.RES_nil, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("void")){return new Token(Kind.RES_void, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("string")){return new Token(Kind.RES_string, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("write")){return new Token(Kind.RES_write, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("int")){return new Token(Kind.RES_int, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+			else if (identifier.equals("boolean")){return new Token(Kind.RES_boolean, startPos, pos - startPos, source, new SourceLocation(line, startColumn));}
+
 		}
 
 		if (isConstant(identifier)) {
@@ -246,12 +295,19 @@ public class Lexer implements ILexer {
 		}
 
 		//IF THE TOKEN IS AN IDENTIFIER
+
 		return new Token(Kind.IDENT, startPos, pos - startPos, source, new SourceLocation(line, startColumn));
+	}
+	private boolean hasNext() {
+		return pos + 1 < source.length;
 	}
 
 	private boolean checkReservedWords(String identifier){
 		boolean temp = false;
-		if (identifier.equals("red") || identifier.equals("blue") || identifier.equals("green")){
+		if (identifier.equals("red") || identifier.equals("blue") || identifier.equals("green") || identifier.equals("if")
+				|| identifier.equals("fi") || identifier.equals("height") || identifier.equals("do") || identifier.equals("od")
+				|| identifier.equals("write")|| identifier.equals("image")|| identifier.equals("pixel")|| identifier.equals("int")
+				|| identifier.equals("string") || identifier.equals("void") || identifier.equals("boolean")|| identifier.equals("nil") || identifier.equals("width")){
 
 			temp = true;
 			return temp;
@@ -284,7 +340,9 @@ public class Lexer implements ILexer {
 
 	private Token scanString() throws LexicalException {
 		int startPos = pos;
+		int startCol = column;
 		increment(); // to account for the opening quote mark
+
 		StringBuilder stringValue = new StringBuilder();
 		while (peek() != '"' && !isEOF()) {
 			if (isInvalidChar(peek())) {
@@ -316,11 +374,8 @@ public class Lexer implements ILexer {
 		}
 		increment(); // consume the closing quote
 
-
-	//	String stringValue = new String(source, startPos, pos - startPos); // +1 and -2 to exclude quotes
-
 		//String stringValue = new String(source, startPos + 1, pos - startPos - 2); // +1 and -2 to exclude quotes
-		return new Token(Kind.STRING_LIT, startPos, pos - startPos, source, new SourceLocation(line, column));
+		return new Token(Kind.STRING_LIT, startPos, pos - startPos, source, new SourceLocation(line, startCol));
 	}
 
 	private char peek() {
@@ -333,17 +388,21 @@ public class Lexer implements ILexer {
 		return source[pos];
 	}
 	private void increment() {
-		pos++; // Move to the next char pos
-		if (pos < source.length && source[pos] == '\n') {
-			//line++;
-			//column = 1; // Column Reset
-			newlineseen = true;
-		} else {
-			if (!newlineseen) {
-				column++;
-			}
-			//column++; // Increment column for next char
+		if (newlineseen) {
+			// If a newline was seen, increment the line and reset the column.
+			line++;
+			column = 1; // Reset column for the first character of the new line
+			newlineseen = false; // Reset the flag since we have handled the newline
 		}
+		else {
+			column++; // Otherwise, increment the column
+		}
+		if (pos < source.length - 1 && source[pos + 1] == '\n') {
+			// The next character is a newline, so prepare to increment the line count.
+			newlineseen = true;
+		}
+		pos++; // Move to the next character position
+
 	}
 	private void handleNewLineSeen(){
 		if (newlineseen){
