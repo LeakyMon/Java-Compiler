@@ -1,16 +1,7 @@
-/*Copyright 2023 by Beverly A Sanders
- * 
- * This code is provided for solely for use of students in COP4020 Programming Language Concepts at the 
- * University of Florida during the fall semester 2023 as part of the course project.  
- * 
- * No other use is authorized. 
- * 
- * This code may not be posted on a public web site either during or after the course.  
- */
+
 package edu.ufl.cise.cop4020fa23;
-
+import java.nio.channels.Channel;
 import java.util.Arrays;
-
 import edu.ufl.cise.cop4020fa23.ast.AST;
 import edu.ufl.cise.cop4020fa23.ast.BinaryExpr;
 import edu.ufl.cise.cop4020fa23.ast.BooleanLitExpr;
@@ -51,14 +42,12 @@ import static edu.ufl.cise.cop4020fa23.Kind.*;
  */
 
 public class ExpressionParser implements IParser {
-	
+
 	final ILexer lexer;
 	private IToken t;
-	
-
 	/**
 	 * @param lexer
-	 * @throws LexicalException 
+	 * @throws LexicalException
 	 */
 	public ExpressionParser(ILexer lexer) throws LexicalException {
 		super();
@@ -68,136 +57,219 @@ public class ExpressionParser implements IParser {
 	@Override
 	public AST parse() throws PLCCompilerException {
 		Expr e = expr();
-
 		return e;
 	}
 	private Expr expr() throws PLCCompilerException {
-		Expr leftExpr = primary();
+		return conditionalExpr();
+	}
 
-		while(t.kind()==PLUS || t.kind() == MINUS){
+	private Expr conditionalExpr() throws PLCCompilerException {
+		if (t.kind() == QUESTION) {
+			IToken firstToken = t;
+			consume(QUESTION);
+			Expr condition = expr();
+			consume(RARROW);
+			Expr trueExpr = expr();
+			consume(COMMA); //
+			Expr falseExpr = expr(); // Parse the false
+			return new ConditionalExpr(firstToken,condition, trueExpr, falseExpr);
+		} else {
+			return logicalOrExpr();
+		}
+	}
+
+	private Expr logicalOrExpr() throws PLCCompilerException {
+		Expr left = logicalAndExpr();
+		while (t.kind() == OR ){ // OR  = logical or
 			IToken opToken = t;
 			consume(t.kind());
-			//if (t.kind() == PLUS){consume(PLUS);}else if(t.kind() == MINUS){consume(MINUS);}
-			//consume(COMMA);
-			Expr rightExpr = primary();
-			leftExpr = new BinaryExpr(opToken, leftExpr, opToken, rightExpr);
+			Expr right = logicalAndExpr();
+			left = new BinaryExpr(opToken, left, opToken, right);
 		}
+		return left;
+	}
+	private Expr logicalAndExpr() throws PLCCompilerException {
+		Expr left = comparisonExpr();
+		while (t.kind() == AND) {
+			IToken opToken = t;
+			consume(t.kind());
+			Expr right = comparisonExpr();
+			left = new BinaryExpr(opToken, left, opToken, right);
+		}
+		return left;
+	}
+	private Expr comparisonExpr() throws PLCCompilerException {
+		Expr left = powExpr();
+		while (t.kind() == BITOR || t.kind() == BITAND || t.kind() == EQ  || t.kind()== MOD || t.kind() == AND || t.kind() == GE ){
+			IToken opToken = t;
+			consume(t.kind());
+			Expr right = powExpr();
+			left = new BinaryExpr(opToken,left,opToken,right);
+		}
+		return left;
+	}
+	private Expr powExpr() throws PLCCompilerException {
+		Expr left = additiveExpr();
+		while (t.kind() == EXP){
+			IToken opToken = t;
+			consume(EXP);
+			Expr right = powExpr();
+			left = new BinaryExpr(opToken, left, opToken, right);
+		}
+		return left;
 
-		return leftExpr;
+	}
+	private Expr additiveExpr() throws PLCCompilerException {
+		Expr left = multiplicativeExpr();
+		while (t.kind() == PLUS || t.kind() == MINUS) {
+			IToken opToken = t;
+			consume(t.kind());
+			Expr right = multiplicativeExpr();
+			left = new BinaryExpr(opToken, left, opToken, right);
+		}
+		return left;
+	}
 
+	private Expr multiplicativeExpr() throws PLCCompilerException {
+		Expr left = unaryExpr();
+		while (t.kind() == TIMES || t.kind() == DIV || t.kind() == MOD) {
+			IToken opToken = t;
+			consume(t.kind());
+			Expr right = unaryExpr();
+			left = new BinaryExpr(opToken, left, opToken, right);
+		}
+		return left;
+	}
+	private Expr unaryExpr() throws PLCCompilerException {
+		IToken opToken = t;
+		//Expr expr = null;
+		//Expr left = PostfixExpr();
+		if (t.kind() == BANG || t.kind() == MINUS || t.kind() == RES_width) {
+			consume(t.kind()); // Consume the unary operator
+			Expr operand = PostfixExpr();// Parse the operand, which could be a NumLitExpr
+			return new UnaryExpr(opToken, opToken, operand);
+		} else {
+			//expr = PostfixExpr();
+			 return PostfixExpr();
+		}
+		//return left;
+	}
+	private Expr PostfixExpr() throws PLCCompilerException {
+
+		Expr left = primary();
+		PixelSelector pixel = null;
+		ChannelSelector selector = null;
+		IToken firstToken = t;
+		//t = lexer.next();
+		IToken op = t;
+		switch (op.kind()) {
+			case LSQUARE -> {
+				pixel = pixelSelector();
+				if (t.kind() == Kind.COLON) {
+					selector = channelSelector();
+					consume(t.kind());
+				}
+				return new PostfixExpr(firstToken, left, pixel, selector);
+			}
+			case COLON -> {
+				selector = channelSelector();
+				return new PostfixExpr(firstToken, left, pixel, selector);
+			}
+		}
+		return left;
+	}
+
+	private ChannelSelector channelSelector() throws PLCCompilerException {
+		IToken firstToken = t;
+		consume(COLON);
+		IToken colorToken = t;
+		if (colorToken.kind() == RES_red) {
+			consume(RES_red);
+		} else if (colorToken.kind() == RES_green) {
+			consume(RES_green);
+		} else if (colorToken.kind() == RES_blue) {
+			consume(RES_blue);
+		} else {
+			throw new SyntaxException("Expected color selector after ':' but found " + colorToken.text());
+		}
+		return new ChannelSelector(firstToken, colorToken);
+	}
+	private PixelSelector pixelSelector() throws PLCCompilerException {
+		IToken firstToken = t;
+		consume(LSQUARE);
+		Expr xExpr = expr(); // Parse the x
+		consume(COMMA); // Consume the comma
+		Expr yExpr = expr(); // Parse the y
+		consume(RSQUARE); // Consume the RSQUARE
+		return new PixelSelector(firstToken, xExpr, yExpr);
 	}
 	private Expr primary() throws PLCCompilerException {
 		IToken firstToken = t;
 		Expr expr;
 		switch (firstToken.kind()) {
 			case STRING_LIT:
-				return new StringLitExpr(t);
-			case NUM_LIT:
-				return new NumLitExpr(t);
-			case MINUS:
-				return unaryExpr();
-			case BOOLEAN_LIT:
-				return new BooleanLitExpr(t);
-			case CONST:
-			case BANG:
-				return unaryExpr();
-			case LPAREN:
-				consume(LPAREN);
-				expr = expr();
-				consume(RPAREN);
-				if (t.kind() == COLON){
-					ChannelSelector channelSelector = channelSelector();
-					return new PostfixExpr(firstToken, expr, null, channelSelector);
-				}
+				expr = new StringLitExpr(t);
+				consume(STRING_LIT);
 				return expr;
 
-			case LSQUARE:
-				consume(LSQUARE);
-				expr = expr();
-				consume(RSQUARE);
-				if (t.kind() == COLON){
-					ChannelSelector channelSelector = channelSelector();
-					return new PostfixExpr(firstToken, expr, null, channelSelector);
-				}
+			case NUM_LIT:
+				expr = new NumLitExpr(t);
+				consume(NUM_LIT);
+				return expr;
+
+			case BOOLEAN_LIT:
+				expr = new BooleanLitExpr(t);
+				consume(BOOLEAN_LIT);
+				return expr;
+
+			case CONST:
+				expr = new ConstExpr(t);
+				consume(CONST);
 				return expr;
 
 			case IDENT:
-				IdentExpr identExpr = new IdentExpr(t);
+				expr = new IdentExpr(t);
 				consume(IDENT);
-				PixelSelector pixel = null;
-				ChannelSelector channel = null;
+				return expr;
+			case MINUS:
+				return unaryExpr();
 
-				if (t.kind() == LSQUARE){
-					PixelSelector pixelSelector = pixelSelector();
-					return new PostfixExpr(firstToken, identExpr, pixelSelector, null);
-
+			case LPAREN:
+				//ChannelSelector channel = null;
+				consume(LPAREN);
+				Expr innerParen = expr();
+				//consume(RPAREN);
+				if (t.kind() != Kind.RPAREN){
+					throw new SyntaxException("Missing Right Paren");
 				}
-				if (t.kind() == COLON){
-					ChannelSelector channelSelector = channelSelector();
-					//channel = channelSelector();
-					return new PostfixExpr(firstToken, identExpr, null, channelSelector);
-					//channel = channelSelector();
-					//return new PostfixExpr(firstToken, identExpr, pixel, channel);
+				consume(RPAREN);
+				//innerParen = PostfixExpr(innerParen);
+				return innerParen;
+				//return expr = new IdentExpr(t);
+				//return PostfixExpr(innerParen);
 
-				}
-
-
-				//return identExpr;
-				//return new PostfixExpr(firstToken, identExpr, pixel, channel);
-				return identExpr;
+			case LSQUARE:
+				return expandedPixelExpr();
+				//return handleBracketedExprs();
 
 			default:
 				throw new SyntaxException("Syntax Error: Unexpected token " + firstToken.text());
 		}
 	}
-	private ChannelSelector channelSelector() throws PLCCompilerException {
-		IToken firstToken = t;
-		consume(COLON);
 
-		IToken colorToken = t;
-		switch (colorToken.kind()) {
-			case RES_red:
-				consume(RES_red);
-
-				break;
-			case RES_green:
-				consume(RES_green);
-				break;
-			case RES_blue:
-				consume(RES_blue);
-				break;
-			default:
-				throw new SyntaxException("Expected color selector after ':' but found " + colorToken.text());
-		}
-		return new ChannelSelector(firstToken, colorToken);
-	}
-	private PixelSelector pixelSelector() throws PLCCompilerException {
-		IToken firstToken = t;
-		consume(LSQUARE); // Consume the '['
-		Expr xExpr = expr(); // Parse the x
-		consume(t.kind());
-		consume(COMMA); // Consume the comma
-		Expr yExpr = expr(); // the y expression
-		consume(RSQUARE);
-		return new PixelSelector(firstToken, xExpr, yExpr); //
-	}
-
-	private Expr unaryExpr() throws PLCCompilerException{ //Throws PLCCompilerException in order to call primary() function
-		IToken opToken = t; //operator token
-		//consume(MINUS);
-		if (t.kind() == MINUS){
-			consume(MINUS);
-		}
-		else if (t.kind() == BANG){
-			consume(BANG);
-		}
-		else if (t.kind() == PLUS){
-			consume(PLUS);
-		}
-		 // or match any other unary operator you have
-		Expr e = primary(); // This will get the operand for the unary operator
-		return new UnaryExpr(opToken, opToken, e);
-
+	private Expr expandedPixelExpr() throws PLCCompilerException {
+			IToken firstToken = t;
+			consume(LSQUARE);
+			Expr xExpr = expr();
+			consume(IDENT);
+			consume(COMMA);
+			Expr yExpr = expr();
+			consume(IDENT);
+			consume(COMMA);
+			Expr zExpr = expr();
+			consume(IDENT);
+			consume(RSQUARE);
+			return new ExpandedPixelExpr(firstToken, xExpr, yExpr, zExpr); //
 	}
 
 	private void consume(Kind expected) throws LexicalException {
@@ -208,3 +280,6 @@ public class ExpressionParser implements IParser {
 		}
 	}
 }
+
+
+

@@ -310,7 +310,7 @@ class ExpressionParserTest_starter {
 		Expr v0 = ((UnaryExpr) ast).getExpr();
 		checkNumLitExpr(v0, 3);
 	}
-
+//a[x+1,y-2]:blue
 	@Test
 	void test11() throws PLCCompilerException {
 		String input = """
@@ -458,6 +458,18 @@ class ExpressionParserTest_starter {
 			@SuppressWarnings("unused")
 			AST ast = getAST(input);
 		});
+	}
+	@Test
+	void IgnoreTest() throws PLCCompilerException{
+		String input = """
+    			a + b c
+				""";
+		AST ast = getAST(input);
+		checkBinaryExpr(ast, Kind.PLUS);
+		Expr v0 = ((BinaryExpr) ast).getLeftExpr();
+		checkIdentExpr(v0, "a");
+		Expr v1 = ((BinaryExpr) ast).getRightExpr();
+		checkIdentExpr(v1, "b");
 	}
 
 }

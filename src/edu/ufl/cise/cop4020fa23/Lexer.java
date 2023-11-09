@@ -126,7 +126,7 @@ public class Lexer implements ILexer {
 						return new Token(Kind.OR, pos -2, 2, source, new SourceLocation(line, column));
 					}
 					return new Token(Kind.BITOR, pos - 1, 1, source, new SourceLocation(line, column));
-					//&& Case NOT WORKING
+
 				case '&':
 					int startColumn = column; // G
 					int startLine = line;
@@ -198,7 +198,7 @@ public class Lexer implements ILexer {
 			increment(); // This consumes the character.
 		}
 		if (peek() == '\n') { // Only increment if there is a newline character to consume.
-			increment(); // This consumes the newline
+			increment();
 		}
 
 	}
@@ -389,10 +389,9 @@ public class Lexer implements ILexer {
 	}
 	private void increment() {
 		if (newlineseen) {
-			// If a newline was seen, increment the line and reset the column.
 			line++;
-			column = 1; // Reset column for the first character of the new line
-			newlineseen = false; // Reset the flag since we have handled the newline
+			column = 1; // Reset column
+			newlineseen = false; // Reset the flag
 		}
 		else {
 			column++; // Otherwise, increment the column
@@ -401,7 +400,7 @@ public class Lexer implements ILexer {
 			// The next character is a newline, so prepare to increment the line count.
 			newlineseen = true;
 		}
-		pos++; // Move to the next character position
+		pos++;
 
 	}
 	private void handleNewLineSeen(){
@@ -412,8 +411,12 @@ public class Lexer implements ILexer {
 		}
 	}
 	private boolean isInvalidChar(char c){
-		String validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ$_+0123456789@#&%";
+		String validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ$_+0123456789@#&% ";
 		if (validChars.indexOf(c) == -1) {
+
+			if (c == ' '){
+				return false;
+			}
 
 			return true;
 		}
