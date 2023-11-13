@@ -1,4 +1,23 @@
 
+/**
+ Expr::= ConditionalExpr | LogicalOrExpr
+ ConditionalExpr ::= ? Expr -> Expr , Expr
+ LogicalOrExpr ::= LogicalAndExpr ( ( | | || ) LogicalAndExpr)*
+ LogicalAndExpr ::= ComparisonExpr ( ( & | && ) ComparisonExpr)*
+ ComparisonExpr ::= PowExpr ( (< | > | == | <= | >=) PowExpr)*
+ PowExpr ::= AdditiveExpr ** PowExpr | AdditiveExpr
+ AdditiveExpr ::= MultiplicativeExpr ( ( + | - ) MultiplicativeExpr )*
+ MultiplicativeExpr ::= UnaryExpr (( * | / | % ) UnaryExpr)*
+ UnaryExpr ::= ( ! | - | width | height) UnaryExpr | PostfixExpr
+ PostfixExpr::= PrimaryExpr (PixelSelector | ε ) (ChannelSelector | ε )
+ PrimaryExpr ::=STRING_LIT | NUM_LIT | BOOLEAN_LIT | IDENT | ( Expr ) | CONST |
+ ExpandedPixelExpr
+ ChannelSelector ::= : red | : green | : blue
+ PixelSelector ::= [ Expr , Expr ]
+ ExpandedPixelExpr ::= [ Expr , Expr , Expr ]
+
+ */
+
 package edu.ufl.cise.cop4020fa23;
 import java.nio.channels.Channel;
 import java.util.Arrays;
@@ -21,25 +40,6 @@ import edu.ufl.cise.cop4020fa23.exceptions.PLCCompilerException;
 import edu.ufl.cise.cop4020fa23.exceptions.SyntaxException;
 
 import static edu.ufl.cise.cop4020fa23.Kind.*;
-
-/**
- Expr::= ConditionalExpr | LogicalOrExpr
- ConditionalExpr ::= ? Expr -> Expr , Expr
- LogicalOrExpr ::= LogicalAndExpr ( ( | | || ) LogicalAndExpr)*
- LogicalAndExpr ::= ComparisonExpr ( ( & | && ) ComparisonExpr)*
- ComparisonExpr ::= PowExpr ( (< | > | == | <= | >=) PowExpr)*
- PowExpr ::= AdditiveExpr ** PowExpr | AdditiveExpr
- AdditiveExpr ::= MultiplicativeExpr ( ( + | - ) MultiplicativeExpr )*
- MultiplicativeExpr ::= UnaryExpr (( * | / | % ) UnaryExpr)*
- UnaryExpr ::= ( ! | - | width | height) UnaryExpr | PostfixExpr
- PostfixExpr::= PrimaryExpr (PixelSelector | ε ) (ChannelSelector | ε )
- PrimaryExpr ::=STRING_LIT | NUM_LIT | BOOLEAN_LIT | IDENT | ( Expr ) | CONST |
- ExpandedPixelExpr
- ChannelSelector ::= : red | : green | : blue
- PixelSelector ::= [ Expr , Expr ]
- ExpandedPixelExpr ::= [ Expr , Expr , Expr ]
-
- */
 
 public class ExpressionParser implements IParser {
 
@@ -100,7 +100,7 @@ public class ExpressionParser implements IParser {
 	}
 	private Expr comparisonExpr() throws PLCCompilerException {
 		Expr left = powExpr();
-		while (t.kind() == BITOR || t.kind() == BITAND || t.kind() == EQ  || t.kind()== MOD || t.kind() == AND || t.kind() == GE ){
+		while (t.kind() == BITOR || t.kind() == BITAND || t.kind() == EQ  || t.kind()== MOD || t.kind() == AND || t.kind() == GE || t.kind() == LT || t.kind() == GT){
 			IToken opToken = t;
 			consume(t.kind());
 			Expr right = powExpr();
@@ -144,7 +144,7 @@ public class ExpressionParser implements IParser {
 		IToken opToken = t;
 		//Expr expr = null;
 		//Expr left = PostfixExpr();
-		if (t.kind() == BANG || t.kind() == MINUS || t.kind() == RES_width) {
+		if (t.kind() == BANG || t.kind() == MINUS || t.kind() == RES_width || t.kind() == RES_height) {
 			consume(t.kind()); // Consume the unary operator
 			Expr operand = PostfixExpr();// Parse the operand, which could be a NumLitExpr
 			return new UnaryExpr(opToken, opToken, operand);
@@ -268,6 +268,9 @@ public class ExpressionParser implements IParser {
 			consume(COMMA);
 			Expr zExpr = expr();
 			consume(IDENT);
+			if (t.kind() != RSQUARE){
+				throw new SyntaxException("No right bracket");
+			}
 			consume(RSQUARE);
 			return new ExpandedPixelExpr(firstToken, xExpr, yExpr, zExpr); //
 	}
