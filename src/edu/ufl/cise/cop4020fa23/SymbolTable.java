@@ -13,6 +13,7 @@ public class SymbolTable {
 
     private int currentScopeID;
 
+
     public SymbolTable() {
         this.scopes = new Stack<>();
         this.currentScopeID = 0;

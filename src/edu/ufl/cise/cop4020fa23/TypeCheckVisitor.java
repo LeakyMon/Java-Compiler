@@ -525,4 +525,5 @@ public class TypeCheckVisitor implements ASTVisitor {
        }
         return isConst;
     }
+
 }
