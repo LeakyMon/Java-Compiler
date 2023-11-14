@@ -382,7 +382,6 @@ public class Parser implements IParser {
 				consume(Kind.CONST); // Consume the constant
 				return new ConstExpr(constToken); // Create a ConstExpr AST node
 			case LSQUARE:
-
 				consume(Kind.LSQUARE); // Consume the '['
 				Expr red = expression(); // Parse the red component
 				consume(Kind.COMMA);

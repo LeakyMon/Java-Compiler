@@ -45,6 +45,7 @@ public class PixelSelector extends AST {
 
 	@Override
 	public boolean equals(Object obj) {
+		System.out.println("Currnet obj" + this);
 		if (this == obj)
 			return true;
 		if (!super.equals(obj) || (getClass() != obj.getClass()))
