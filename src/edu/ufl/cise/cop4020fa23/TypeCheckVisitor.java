@@ -16,7 +16,9 @@ public class TypeCheckVisitor implements ASTVisitor {
     String currentSide = "left";
     private boolean isInPixelSelectorContext = false;
     private boolean isInExpandedPixelExprContext = false;
-    private Map<String,Boolean> declaringVariables = new HashMap<>();
+    //private Map<String,Boolean> declaringVariables = new HashMap<>();
+    private Map<String, Integer> declaringVariables = new HashMap<>();
+    private int currentScopeLevel = 0;
     private boolean isInReturnContext = false;
     private Map<String, NameDef> syntheticVariables = new HashMap<>();
 
@@ -59,6 +61,7 @@ public class TypeCheckVisitor implements ASTVisitor {
             case MINUS:
             case TIMES:
             case DIV:
+            case EXP:
                 if (leftType == Type.INT && rightType == Type.INT) {
                     isBinary = Type.INT;
                 }
@@ -67,11 +70,32 @@ public class TypeCheckVisitor implements ASTVisitor {
                 }
                 break;
             case AND:
+            case EQ: // Replace 'EQUALS' with the actual constant for equality check in your language
+                if (leftType == rightType) {
+                    isBinary = Type.BOOLEAN;
+                    break;
+                }
             case OR:
                 if (leftType == Type.BOOLEAN && rightType == Type.BOOLEAN) {
                     isBinary = Type.BOOLEAN;
                     break;
                 }
+            case LT:
+                if (leftType == Type.INT && rightType == Type.INT) {
+                    isBinary = Type.BOOLEAN;
+                    break;
+                }
+            case LE:
+                if (leftType == Type.INT && rightType == Type.INT) {
+                    isBinary = Type.BOOLEAN;
+                    break;
+                }
+            case GE:
+                if (leftType == Type.INT && rightType == Type.INT) {
+                    isBinary = Type.BOOLEAN;
+                    break;
+                }
+
             case GT:
                 if (leftType == Type.INT && rightType == Type.INT) {
                 isBinary = Type.BOOLEAN;
@@ -84,13 +108,15 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitBlock(Block block, Object arg) throws PLCCompilerException {
+        currentScopeLevel++;
         st.enterScope();
-        System.out.println("Entered scope");
+        //System.out.println("Entered scope");
         for (Block.BlockElem stmt : block.getElems()) {
             stmt.visit(this, arg);
         }
         st.leaveScope();
-        System.out.println("leaving block scope");
+        //System.out.println("leaving block scope");
+        currentScopeLevel--;
         return block;
     }
 
@@ -106,16 +132,15 @@ public class TypeCheckVisitor implements ASTVisitor {
     @Override
     public Object visitChannelSelector(ChannelSelector channelSelector, Object arg) throws PLCCompilerException {
 
-        System.out.println("Type for channel selection: " + arg);
+       // System.out.println("Type for channel selection: " + arg);
 
         if (!(arg == Type.PIXEL || arg == Type.IMAGE)) {
             throw new TypeCheckException(channelSelector.firstToken.sourceLocation(),
                     "Channel selection can only be applied to pixel or image types.");
         }
 
-        // Determine the channel being selected
         Kind channel = channelSelector.color();
-        // Check if the selected channel is valid
+
         if (channel != Kind.RES_red && channel != Kind.RES_blue && channel != Kind.RES_green) {
             throw new TypeCheckException(channelSelector.firstToken.sourceLocation(),
                     "Invalid channel selected: " + channel);
@@ -167,10 +192,11 @@ public class TypeCheckVisitor implements ASTVisitor {
         NameDef nameDef = declaration.getNameDef();
         st.insert(nameDef.getName(), nameDef);
         st.addDeclaredVariable(nameDef.getName());
-        System.out.println("Inserted: " + nameDef.getName());
-        declaringVariables.put(name, true);
+        //System.out.println("Inserted: " + nameDef.getName());
+       // declaringVariables.put(name, true);
+        declaringVariables.put(name, currentScopeLevel);
 
-        // Process the initializer
+        // Process initializer
         Expr initializer = declaration.getInitializer();
         if (initializer != null) {
             Type initializerType = (Type) initializer.visit(this, arg);
@@ -185,7 +211,6 @@ public class TypeCheckVisitor implements ASTVisitor {
             }
         }
 
-        // Remove the initialization mark as the variable is fully initialized
         declaringVariables.remove(name);
 
         // Process dimension
@@ -223,7 +248,7 @@ public class TypeCheckVisitor implements ASTVisitor {
         Expr yExpr = pixelSelector.yExpr();
 
         Type xType = (Type) xExpr.visit(this, arg);
-        System.out.println("xType " + xType.toString());
+       // System.out.println("xType " + xType.toString());
         if (xType != Type.INT) {
             throw new TypeCheckException(pixelSelector.firstToken.sourceLocation(), "X dimension must be of type INT.");
         }
@@ -277,11 +302,9 @@ public class TypeCheckVisitor implements ASTVisitor {
 
     @Override
     public Object visitIdentExpr(IdentExpr identExpr, Object arg) throws PLCCompilerException {
-
-
         String name = identExpr.getName();
        // boolean isSyntheticContext = isInPixelSelectorContext || isInExpandedPixelExprContext;
-        System.out.println("Visiting IdentExpr: " + name);
+       // System.out.println("Visiting IdentExpr: " + name);
 
         NameDef nameDef = st.lookup(name);
 
@@ -307,9 +330,23 @@ public class TypeCheckVisitor implements ASTVisitor {
             }
         }
         //Self assigned variable
-        if (declaringVariables.containsKey(name)) {
-            throw new TypeCheckException("Variable '" + name + "' used in its its initializer");
+        System.out.println("current level" + currentScopeLevel);
+
+
+
+        if (declaringVariables.containsKey(name) && declaringVariables.get(name) == currentScopeLevel) {
+
+            if (st.isInCurrentScope(name) && st.isDeclaredInLowerScope(name)){
+                throw new TypeCheckException("Variable used in initializer " + name);
+
+            }
+            else {
+                System.out.println("Hey");
+                throw new TypeCheckException("Variable '" + name + "' used in its initializer");
+            }
         }
+
+        System.out.println("passing");
         Type idType = nameDef.getType();
         identExpr.setType(idType);
         return idType;
@@ -394,7 +431,7 @@ public class TypeCheckVisitor implements ASTVisitor {
     public Object visitPostfixExpr(PostfixExpr postfixExpr, Object arg) throws PLCCompilerException {
         Expr primaryExpr = postfixExpr.primary();
         Type primaryType = (Type) primaryExpr.visit(this, arg);
-        System.out.println("PostFixExpr " + primaryExpr.toString());
+      //  System.out.println("PostFixExpr " + primaryExpr.toString());
         // Check for PixelSelector
         if (postfixExpr.pixel() != null) {
             primaryType = (Type) postfixExpr.pixel().visit(this, primaryType);
@@ -418,14 +455,14 @@ public class TypeCheckVisitor implements ASTVisitor {
         Type type = Type.kind2type(program.getTypeToken().kind());
         program.setType(type);
         st.enterScope();
-        System.out.println("entering program scope");
+        //System.out.println("entering program scope");
         List<NameDef> params = program.getParams();
         for (NameDef param : params){
             param.visit(this, arg);
         }
         program.getBlock().visit(this, arg);
         st.leaveScope();
-        System.out.println("left program scope");
+        //System.out.println("left program scope");
         return type;
 
     }
@@ -433,7 +470,7 @@ public class TypeCheckVisitor implements ASTVisitor {
     @Override
     public Object visitReturnStatement(ReturnStatement returnStatement, Object arg) throws PLCCompilerException {
         Expr returnValue = returnStatement.getE(); // Get the return expression
-        System.out.println(returnValue);
+       // System.out.println(returnValue);
         if (returnValue == null) {
             if (root != null && root.getType() != Type.VOID) {
                 throw new TypeCheckException(returnStatement.firstToken.sourceLocation(),
@@ -455,7 +492,7 @@ public class TypeCheckVisitor implements ASTVisitor {
                     "Return type mismatch. Expected: " + root.getType() + ", Found: " + returnType);
         }
 
-        System.out.println(returnType);
+        //System.out.println(returnType);
 
         return returnType;
     }

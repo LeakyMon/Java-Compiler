@@ -10,6 +10,7 @@
 package edu.ufl.cise.cop4020fa23;
 
 import edu.ufl.cise.cop4020fa23.ast.ASTVisitor;
+import edu.ufl.cise.cop4020fa23.exceptions.CodeGenException;
 import edu.ufl.cise.cop4020fa23.exceptions.LexicalException;
 
 /**
@@ -41,7 +42,7 @@ public class ComponentFactory {
 			return new TypeCheckVisitor();
 		}
 		public static ASTVisitor makeCodeGenerator(){
-			return null;
+			return new CodeGenVisitor();
 		}
 		
 }

@@ -23,8 +23,17 @@ public class SymbolTable {
     public void enterScope() {
         scopes.push(new HashMap<>());
         currentScopeID++;
-        scopeStack.push(currentScopeID); //
+        scopeStack.push(currentScopeID);
     }
+
+    public boolean isDeclaredInLowerScope(String variableName) {
+        SymbolTableEntry entry = getEntry(variableName);
+        System.out.println(entry);
+        return entry != null && entry.scopeID < currentScopeID;
+    }
+
+
+
     public void addDeclaredVariable(String name) {
         allDeclaredVariables.add(name);
     }
@@ -40,9 +49,11 @@ public class SymbolTable {
         if (!scopes.isEmpty()) {
             scopes.pop();
         }
-        if (!scopeStack.isEmpty()) {
+/*
+if (!scopeStack.isEmpty()) {
             scopeStack.pop();
         }
+ */
         if (currentScopeID > 0) {
             currentScopeID--;
         }
@@ -54,6 +65,7 @@ public class SymbolTable {
         scopes.peek().put(name, newEntry);
     }
     public SymbolTableEntry getEntry(String name) {
+
         for (int i = scopes.size() - 1; i >= 0; i--) {
             SymbolTableEntry entry = scopes.get(i).get(name);
             if (entry != null) {
@@ -62,15 +74,10 @@ public class SymbolTable {
         }
         return null;
     }
-    public boolean isVariableDeclared(String name) {
-        for (Map<String, SymbolTableEntry> scope : scopes) {
-            if (scope.containsKey(name)) {
-                System.out.println("variable declared");
-                return true;
-            }
+    public boolean isVariableDeclaredInScope(String name, int scopeID) {
+        if (scopeID < scopes.size()) {
+            return scopes.get(scopeID).containsKey(name);
         }
-        System.out.println("variable not declared");
-
         return false;
     }
 
