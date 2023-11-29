@@ -133,7 +133,6 @@ public class Parser implements IParser {
 			// Parse a write statement
 			return parseWriteStatement();
 		} else if (isTypeToken(t)) {
-			// Parse a declaration, which starts with a type token
 			return parseDeclaration();
 		}
 		else if (t.kind() == Kind.IDENT) {
@@ -146,13 +145,11 @@ public class Parser implements IParser {
 			return parseReturnStatement();
 		}
 		else if (t.kind() == Kind.RES_if) {
-			// Parse an 'if' statement with its guarded blocks
 			return parseIfStatement();
 		}
 
 		else {
 
-			// Handle other kinds of block elements (statements, control structures, etc.)
 			throw new SyntaxException("Unknown block element type: " + t.kind());
 		}
 	}
@@ -168,7 +165,7 @@ public class Parser implements IParser {
 		Expr guardExpr = expression(); // Parse guard expression
 		consume(Kind.RARROW);
 		Expr trueExpr = expression(); // Parse true case expression
-		consume(Kind.COMMA); // Consume ','
+		consume(Kind.COMMA); // Consume da comma
 		Expr falseExpr = expression(); // Parse false case expression
 		return new ConditionalExpr(firstToken, guardExpr, trueExpr, falseExpr);
 	}
@@ -326,7 +323,7 @@ public class Parser implements IParser {
 
 
 	private Expr unaryExpression() throws PLCCompilerException {
-		System.out.println("Current Token in unaryExpression: " + t.kind()); // Debugging print
+		//System.out.println("Current Token in unaryExpression: " + t.kind()); // Debugging print
 
 		if (Arrays.asList(Kind.RES_width, Kind.RES_height, Kind.BANG, Kind.MINUS).contains(t.kind())) {
 			IToken unaryOperator = t; // Store the unary operator token
@@ -403,7 +400,7 @@ public class Parser implements IParser {
 			case LPAREN:
 				consume(Kind.LPAREN);
 				Expr expr = expression(); // Parse the expression inside the parentheses
-				consume(Kind.RPAREN); // Assuming RPAREN represents ')'
+				consume(Kind.RPAREN);
 				return expr;
 			case BANG:
 				return unaryExpression();
@@ -411,7 +408,6 @@ public class Parser implements IParser {
 				return unaryExpression();
 			case RES_height:
 				return unaryExpression();
-			// Handle other kinds of primary expressions...
 
 			default:
 				throw new SyntaxException("Unsupported primary expression type" + t.kind());
@@ -476,7 +472,6 @@ public class Parser implements IParser {
 		//consume(typeToken.kind());
 		Dimension dimension = null; // Initialize dimension
 
-		// Check for a dimension specification
 		if (t.kind() == Kind.LSQUARE) {
 			dimension = dimension(); // Parse the dimension
 		}

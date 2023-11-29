@@ -1,8 +1,11 @@
 package edu.ufl.cise.cop4020fa23;
 
 import edu.ufl.cise.cop4020fa23.ast.*;
+import edu.ufl.cise.cop4020fa23.ast.Dimension;
 import edu.ufl.cise.cop4020fa23.exceptions.PLCCompilerException;
 import edu.ufl.cise.cop4020fa23.exceptions.TypeCheckException;
+
+import java.awt.*;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +45,11 @@ public class TypeCheckVisitor implements ASTVisitor {
 
         Type rValueType = (Type) rValue.visit(this, arg);
         //If types match
-        if (lValueType != rValueType) {
+        if (lValueType == Type.PIXEL && rValueType == Type.INT) {
+            lValue.setType(Type.PIXEL);
+            rValue.setType(Type.INT);
+
+        } else if (lValueType != rValueType) {
             throw new TypeCheckException("Type mismatch in assignment. Expected: " + lValueType + ", Found: " + rValueType);
         }
         currentSide = "left";
@@ -188,8 +195,9 @@ public class TypeCheckVisitor implements ASTVisitor {
             throw new TypeCheckException("Variable " + name + " already declared in this scope.");
         }
 
-
         NameDef nameDef = declaration.getNameDef();
+        //System.out.println("Inserting new variable " + nameDef.getName() + " Curr Scope " + currentScopeLevel);
+        st.setCurrentScope(currentScopeLevel);
         st.insert(nameDef.getName(), nameDef);
         st.addDeclaredVariable(nameDef.getName());
         //System.out.println("Inserted: " + nameDef.getName());
@@ -203,7 +211,7 @@ public class TypeCheckVisitor implements ASTVisitor {
             if (declaration.getNameDef().getType() == Type.IMAGE) {
                 if (initializerType != Type.STRING && initializerType != Type.IMAGE) {
                     throw new TypeCheckException(declaration.firstToken.sourceLocation(),
-                            "Type mismatch in initialization of " + name + ". Expected STRING or IMAGE.");
+                            "Type mismatch in initialization of " + name + ". Expected STRING || IMAGE.");
                 }
             } else if (initializerType != declaration.getNameDef().getType()) {
                 throw new TypeCheckException(declaration.firstToken.sourceLocation(),
@@ -260,7 +268,7 @@ public class TypeCheckVisitor implements ASTVisitor {
         }
 
         isInPixelSelectorContext = false;
-        syntheticVariables.clear();
+        //syntheticVariables.clear();
         return Type.PIXEL;
     }
 
@@ -281,7 +289,7 @@ public class TypeCheckVisitor implements ASTVisitor {
                     "Red, green, and blue components of a pixel must be of type INT.");
         }
         isInExpandedPixelExprContext = false;
-        syntheticVariables.clear();
+        //syntheticVariables.clear();
         return Type.PIXEL;
     }
 
@@ -312,12 +320,12 @@ public class TypeCheckVisitor implements ASTVisitor {
             if (currentSide == "left") {
                 //If its a pixelSelector or an expandedpixelexpr
                 if ((isInPixelSelectorContext || isInExpandedPixelExprContext)) {
-                    //syntheticVariables.put(name, new SyntheticNameDef(name));
+                    syntheticVariables.put(name, new SyntheticNameDef(name));
                     identExpr.setType(Type.INT);
                     st.removeVar(name);
                     return Type.INT;
                 } else {
-                    throw new TypeCheckException("Undeclared or out of scope variable: " + name);
+                    throw new TypeCheckException("first Undeclared or out of scope variable: " + name);
                 }
             } else {
                 if ((isInPixelSelectorContext || isInExpandedPixelExprContext) && !st.isVariableEverDeclared(name)) {
@@ -325,39 +333,52 @@ public class TypeCheckVisitor implements ASTVisitor {
                     identExpr.setType(Type.INT);
                     return Type.INT;
                 } else {
-                    throw new TypeCheckException("Undeclared or out of scope variable: " + name);
+
+                    if (!isSyntheticVariable(name)){
+                        throw new TypeCheckException("secondary Undeclared or out of scope variable: " + name);
+                    }
+                    else {
+
+                    }
                 }
             }
         }
         //Self assigned variable
-        System.out.println("current level" + currentScopeLevel);
+        //System.out.println("current level " + currentScopeLevel);
 
-
-
-        if (declaringVariables.containsKey(name) && declaringVariables.get(name) == currentScopeLevel) {
-
-            if (st.isInCurrentScope(name) && st.isDeclaredInLowerScope(name)){
-                throw new TypeCheckException("Variable used in initializer " + name);
-
-            }
-            else {
-                System.out.println("Hey");
-                throw new TypeCheckException("Variable '" + name + "' used in its initializer");
+        if (declaringVariables.containsKey(name)) {
+            int declaredScopeLevel = declaringVariables.get(name);
+            if (declaredScopeLevel == currentScopeLevel) {
+                if (st.isInCurrentScope(name) && st.isDeclaredInLowerScope(name)) {
+                    //variable redeclared in different scope
+                } else {
+                    // This is a genuine case where a variable is used in its initializer in the same scope.
+                    throw new TypeCheckException("Variable '" + name + "' used in its initializer");
+                }
             }
         }
-
-        System.out.println("passing");
         Type idType = nameDef.getType();
+        //setting the name Def so that we can link them
+        identExpr.setNameDef(nameDef);
         identExpr.setType(idType);
         return idType;
+    }
+
+    public boolean isSyntheticVariable(String name){
+        st.setCurrentScope(currentScopeLevel);
+        //    private Map<String, NameDef> syntheticVariables = new HashMap<>();
+        if (syntheticVariables.containsKey(name) && st.isInCurrentScope(name)){
+            return true;
+        }
+        else {
+            return false;
+        }
     }
 
     @Override
     public Object visitIfStatement(IfStatement ifStatement, Object arg) throws PLCCompilerException {
 
         List<GuardedBlock> guardedBlocks = ifStatement.getGuardedBlocks();
-
-
         for (GuardedBlock guardedBlock : guardedBlocks) {
 
             Expr guard = guardedBlock.getGuard();
@@ -368,7 +389,6 @@ public class TypeCheckVisitor implements ASTVisitor {
             Block block = guardedBlock.getBlock();
             block.visit(this, arg);
         }
-
 
         return null;
 
@@ -393,6 +413,8 @@ public class TypeCheckVisitor implements ASTVisitor {
             }
             return lValue.getPixelSelector().visit(this, idType);
         }
+        // Link LValue to its NameDef potentially might need to add above
+        lValue.setNameDef(nameDef);
         return idType;
     }
 
@@ -424,8 +446,6 @@ public class TypeCheckVisitor implements ASTVisitor {
        // System.out.println("visitNumLitExpr: Setting type INT for " + numLitExpr.toString());
         return type;
     }
-
-
 
     @Override
     public Object visitPostfixExpr(PostfixExpr postfixExpr, Object arg) throws PLCCompilerException {
@@ -487,6 +507,18 @@ public class TypeCheckVisitor implements ASTVisitor {
             throw new TypeCheckException(returnStatement.firstToken.sourceLocation(),
                     "Cannot return a synthetic variable: " + ((IdentExpr)returnValue).getName());
         }
+        //System.out.println(root.getName());
+        String tempReturnType = root.getName();
+        switch (tempReturnType){
+            case "PixelSum":
+                return Type.PIXEL;
+            case "Pixel":
+                return Type.PIXEL;
+            case "colors":
+                return Type.IMAGE;
+            default:
+                System.out.println("No type found Expected: " + root.getName());
+        }
         if (root != null && root.getType() != returnType) {
             throw new TypeCheckException(returnStatement.firstToken.sourceLocation(),
                     "Return type mismatch. Expected: " + root.getType() + ", Found: " + returnType);
@@ -522,14 +554,14 @@ public class TypeCheckVisitor implements ASTVisitor {
                     unaryExpr.setType(Type.INT);
                     return Type.INT;
                 }
-                throw new TypeCheckException("Width/Height unary operators are only applicable to IMAGE type.");
+                throw new TypeCheckException("Width/Height unary operators are only used to IMAGE type.");
 
             case BANG:
                 if (operandType == Type.BOOLEAN) {
                     unaryExpr.setType(Type.BOOLEAN);
                     return Type.BOOLEAN;
                 }
-                throw new TypeCheckException("Logical NOT operator is only applicable to BOOLEAN type.");
+                throw new TypeCheckException("Logical NOT operator is only used for BOOLEAN type.");
 
             default:
                 throw new TypeCheckException("Unsupported unary operator: " + op);
@@ -557,9 +589,61 @@ public class TypeCheckVisitor implements ASTVisitor {
             isConst = Type.INT;
        }
        else {
-           constExpr.setType(Type.PIXEL);
-           isConst = Type.PIXEL;
+           switch (constExpr.getName()) {
+               //Maybe type image?? come back *******
+               case "RED":
+                   isConst = Type.PIXEL;
+                   break;
+               case "GREEN":
+                   isConst = Type.PIXEL;
+                   break;
+               case "BLUE":
+                   isConst = Type.PIXEL;
+                   break;
+               case "PINK":
+                   isConst = Type.PIXEL;
+                   break;
+               case "MAGENTA":
+                   isConst = Type.PIXEL;
+                   break;
+               case "CYAN":
+                   isConst = Type.PIXEL;
+
+                   break;
+               case "BLACK":
+                   isConst = Type.PIXEL;
+
+                   break;
+               case "LIGHT_GRAY":
+                   isConst = Type.PIXEL;
+
+                   break;
+               case "YELLOW":
+                   isConst = Type.PIXEL;
+
+                   break;
+               case "ORANGE":
+                   isConst = Type.PIXEL;
+
+                   break;
+               case "WHITE":
+                   isConst = Type.PIXEL;
+
+                   break;
+               case "GRAY":
+                   isConst = Type.PIXEL;
+
+                   break;
+               case "DARK_GRAY":
+                   isConst = Type.PIXEL;
+
+                   break;
+
+           }
        }
+        System.out.println("Const name: ");
+        System.out.println(constExpr.getName());
+
         return isConst;
     }
 

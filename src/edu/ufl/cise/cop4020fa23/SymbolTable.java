@@ -13,6 +13,9 @@ public class SymbolTable {
 
     private int currentScopeID;
 
+    public void setCurrentScope(int passedScope){
+        this.currentScopeID = passedScope;
+    }
 
     public SymbolTable() {
         this.scopes = new Stack<>();
@@ -23,13 +26,17 @@ public class SymbolTable {
     public void enterScope() {
         scopes.push(new HashMap<>());
         currentScopeID++;
+        //System.out.println("Entering and pushing scope CurrentSCopeID: " + currentScopeID);
         scopeStack.push(currentScopeID);
     }
 
     public boolean isDeclaredInLowerScope(String variableName) {
-        SymbolTableEntry entry = getEntry(variableName);
-        System.out.println(entry);
-        return entry != null && entry.scopeID < currentScopeID;
+        for (int i = scopes.size() - 2; i >= 0; i--) {
+            if (scopes.get(i).containsKey(variableName)) {
+                return true; // Found the variable in an outer scope
+            }
+        }
+        return false; // Variable not found in any outer scope
     }
 
 
@@ -49,11 +56,6 @@ public class SymbolTable {
         if (!scopes.isEmpty()) {
             scopes.pop();
         }
-/*
-if (!scopeStack.isEmpty()) {
-            scopeStack.pop();
-        }
- */
         if (currentScopeID > 0) {
             currentScopeID--;
         }
@@ -61,6 +63,14 @@ if (!scopeStack.isEmpty()) {
 
     public void insert(String name, NameDef nameDef) {
         SymbolTableEntry previousEntry = getEntry(name); // Get previous entry if it exists
+        String javaName = name;
+        //System.out.println("In insert..Current scope Id " + currentScopeID);
+        if (previousEntry != null && previousEntry.scopeID < currentScopeID) {
+            javaName = name + "_" + currentScopeID;
+            System.out.println("Adding variable " + name + " currScope " + currentScopeID);
+        }
+        nameDef.setJavaName(javaName); // Assuming NameDef has a setJavaName method
+
         SymbolTableEntry newEntry = new SymbolTableEntry(nameDef, currentScopeID, previousEntry);
         scopes.peek().put(name, newEntry);
     }
@@ -69,9 +79,11 @@ if (!scopeStack.isEmpty()) {
         for (int i = scopes.size() - 1; i >= 0; i--) {
             SymbolTableEntry entry = scopes.get(i).get(name);
             if (entry != null) {
+                //System.out.println("Entry isnt null");
                 return entry;
             }
         }
+        //System.out.println("returning null");
         return null;
     }
     public boolean isVariableDeclaredInScope(String name, int scopeID) {
