@@ -24,6 +24,8 @@ public class CodeGenVisitor implements ASTVisitor {
     private StringBuilder generatedCode = new StringBuilder();
     private HashMap<String, Integer> scope = new HashMap<>();
     private int currentScopeLevel = 0;
+    private boolean alreadyUsed = false;
+
 
     public String getGeneratedCode() {
         return generatedCode.toString();
@@ -33,36 +35,31 @@ public class CodeGenVisitor implements ASTVisitor {
         System.out.println("visit assignment ");
         LValue lValue = assignmentStatement.getlValue();
         Expr rValue = assignmentStatement.getE();
+        System.out.println("Rvalue type");
+        System.out.println(rValue.getType());
+        //NameDef type = pixel
 
         Type lValueType = lValue.getType(); // Assuming you have a way to get the type of LValue
         Type rValueType = rValue.getType(); // Assuming you have a way to get the type of the expression
-        System.out.println(lValueType);
-        /*
-        if (lValueType == Type.IMAGE) {
-            System.out.println("Type Image");
-            if (lValue.getPixelSelector() == null && lValue.getChannelSelector() == null) {
-                String varName = lValue.getName();
-                if (rValueType == Type.IMAGE) {
-                    // Image to image assignment
-                    generatedCode.append("ImageOps.copyInto(").append(varName).append(", ");
-                    rValue.visit(this, arg);
-                    generatedCode.append(");");
-                } else if (rValueType == Type.PIXEL) {
-                    // Pixel value to image
-                    generatedCode.append("ImageOps.setAllPixels(").append(varName).append(", ");
-                    rValue.visit(this, arg);
-                    generatedCode.append(");");
-                } else if (rValueType == Type.STRING) {
-                    // String (URL) to image
-                    generatedCode.append(varName).append(" = FileURLIO.readImage(");
-                    rValue.visit(this, arg);
-                    generatedCode.append(");");
-                }
+        //System.out.println(lValueType);
+        NameDef lnameDef = lValue.getNameDef();
+
+        if (lnameDef == null) {
+
+            if (lValue.getPixelSelector() != null) {
+                PixelSelector lPixelSelector = lValue.getPixelSelector();
+                Expr xExpr = lPixelSelector.xExpr();
+                Expr rExpr = lPixelSelector.yExpr();
+
             }
-            // ... TBC
+        }
+        else {
+            lValueType = lnameDef.getType();
+            // rValueType = rnameDef.getType();
+            System.out.println(lValueType);
+            System.out.println(rValueType);
         }
 
-         */
         if (lValueType == Type.PIXEL && rValueType == Type.INT && lValue.getChannelSelector() == null) {
             String varName = lValue.getName();
             generatedCode.append(varName).append(" = PixelOps.pack(");
@@ -102,6 +99,57 @@ public class CodeGenVisitor implements ASTVisitor {
             generatedCode.append(");");
 
         }
+        else if (lValueType == Type.IMAGE && rValue instanceof BinaryExpr) {
+            System.out.println("here");
+            BinaryExpr binaryExpr = (BinaryExpr) rValue;
+            Kind operator = binaryExpr.getOp().kind();
+
+            // Handling specific image operations
+            if (operator == Kind.PLUS && binaryExpr.getLeftExpr().getType() == Type.IMAGE && binaryExpr.getRightExpr().getType() == Type.IMAGE) {
+                // Assuming PLUS is for image addition
+                String varName = lValue.getName();
+                generatedCode.append("ImageOps.copyInto((ImageOps.binaryImageImageOp(ImageOps.OP.PLUS, ");
+               // generatedCode.append(varName).append(" = ImageOps.copyInto((ImageOps.binaryImageImageOp(ImageOps.OP.PLUS, ");
+                binaryExpr.getLeftExpr().visit(this, arg);
+                generatedCode.append(", ");
+                binaryExpr.getRightExpr().visit(this, arg);
+                generatedCode.append(")), ");
+                generatedCode.append(varName);
+                generatedCode.append(");");
+            }
+            else if (operator == Kind.TIMES && binaryExpr.getLeftExpr().getType() == Type.IMAGE && binaryExpr.getRightExpr().getType() == Type.INT){
+                System.out.println("We made it");
+                generatedCode.append("ImageOps.copyInto((ImageOps.binaryImageScalarOp(ImageOps.OP.TIMES,");
+                binaryExpr.getLeftExpr().visit(this, arg);
+                generatedCode.append(", ");
+                binaryExpr.getRightExpr().visit(this, arg);
+                generatedCode.append("))");
+                generatedCode.append(", ");
+                binaryExpr.getLeftExpr().visit(this, arg);
+                generatedCode.append(")");
+
+            }
+        }
+        else if (lValueType == Type.IMAGE && rValue instanceof ExpandedPixelExpr) {
+            ExpandedPixelExpr expandedPixelExpr = (ExpandedPixelExpr) rValue;
+            System.out.println("Image + ExpandedPixelExpr");
+           // ImageOps.setAllPixels(b$2,PixelOps.pack(0,255,0));
+            generatedCode.append("ImageOps.setAllPixels(");
+            lValue.visit(this,arg);
+            generatedCode.append(",");
+            generatedCode.append("PixelOps.pack(");
+
+            System.out.println(lValue.getNameDef());
+            expandedPixelExpr.getRed().visit(this,arg);
+            generatedCode.append(",");
+            expandedPixelExpr.getGreen().visit(this,arg);
+            generatedCode.append(",");
+            expandedPixelExpr.getBlue().visit(this,arg);
+            generatedCode.append("))");
+
+            //System.out.println("GENERATED CODE\n");
+           // System.out.println(generatedCode);
+        }
         else {
             System.out.println("In else case");
             lValue.visit(this, arg);
@@ -115,7 +163,7 @@ public class CodeGenVisitor implements ASTVisitor {
 
     @Override
     public Object visitBinaryExpr(BinaryExpr binaryExpr, Object arg) throws PLCCompilerException {
-        System.out.println("visitbinary ");
+        System.out.println("CG Visit Binary ");
         Kind operator = binaryExpr.getOp().kind();
         Expr leftExpr = binaryExpr.getLeftExpr();
         Expr rightExpr = binaryExpr.getRightExpr();
@@ -123,6 +171,7 @@ public class CodeGenVisitor implements ASTVisitor {
         generatedCode.append("(");  // Start parentheses
         //System.out.println(operator.toString());
         //Adding two pixels together using binaryPackedPixelPixelOP...
+       // System.out.println(leftExpr.getType().toString() + " " + rightExpr.getType().toString());
         if (isPixelExpr(leftExpr, rightExpr)) {
             System.out.println("PixelExpr = TRUE");
             // Handle binary operations involving two pixels
@@ -133,6 +182,8 @@ public class CodeGenVisitor implements ASTVisitor {
                     generatedCode.append("ImageOps.binaryPackedPixelBooleanOp(ImageOps.");
                     generatedCode.append("BoolOP.EQUALS");
                     break;
+                case "TIMES":
+                    System.out.println("CASE TIMES");
                 default:
                     generatedCode.append("ImageOps.binaryPackedPixelPixelOp(ImageOps.");
                     generatedCode.append("OP.");
@@ -154,6 +205,22 @@ public class CodeGenVisitor implements ASTVisitor {
             binaryExpr.getRightExpr().visit(this, arg);
             generatedCode.append(")");
         }
+        else if (operator == Kind.TIMES && leftExpr.getType() == Type.PIXEL && rightExpr.getType() == Type.INT){
+//p$2=(ImageOps.binaryPackedPixelIntOp(ImageOps.OP.TIMES,p$2,3));
+            generatedCode.append("ImageOps.binaryPackedPixelIntOp(ImageOps.OP.TIMES, ");
+            leftExpr.visit(this, arg);  // Visit the left pixel expression
+            generatedCode.append(", ");
+            rightExpr.visit(this, arg); // Visit the right integer expression
+            generatedCode.append(")");
+        }
+        else if (operator == Kind.DIV && leftExpr.getType() == Type.PIXEL && rightExpr.getType() == Type.INT){
+//p$2=(ImageOps.binaryPackedPixelIntOp(ImageOps.OP.TIMES,p$2,3));
+            generatedCode.append("ImageOps.binaryPackedPixelIntOp(ImageOps.OP.DIV, ");
+            leftExpr.visit(this, arg);  // Visit the left pixel expression
+            generatedCode.append(", ");
+            rightExpr.visit(this, arg); // Visit the right integer expression
+            generatedCode.append(")");
+        }
         else if (operator == Kind.RES_pixel){
             System.out.println("kind pixel");
         }
@@ -162,7 +229,25 @@ public class CodeGenVisitor implements ASTVisitor {
             generatedCode.append(" == "); //
             binaryExpr.getRightExpr().visit(this, arg); // Visit right
         }
+        else if (operator == Kind.PLUS && leftExpr.getType() == Type.IMAGE && rightExpr.getType() == Type.IMAGE){
 
+            generatedCode.append("ImageOps.copyInto((ImageOps.binaryImageImageOp(ImageOps.OP.PLUS,");
+            leftExpr.visit(this, arg);  // Visit the left pixel expression
+            generatedCode.append(", ");
+            rightExpr.visit(this, arg); // Visit the right integer expression
+            generatedCode.append("))");
+            generatedCode.append(", ");
+            rightExpr.visit(this, arg);
+            generatedCode.append(")");
+
+
+        }
+        else if (operator == Kind.TIMES && leftExpr.getType() == Type.IMAGE && rightExpr.getType() == Type.IMAGE){
+            System.out.println("TIMES BHIT");
+            //ImageOps.copyInto((ImageOps.binaryImageScalarOp(ImageOps.OP.TIMES,i$2,3)),i$2);
+
+
+        }
         else {
 
             binaryExpr.getLeftExpr().visit(this, arg);
@@ -178,17 +263,7 @@ public class CodeGenVisitor implements ASTVisitor {
         return null;
     }
     private boolean isPixelExpr(Expr left, Expr right) throws PLCCompilerException{
-        /*
-        System.out.println("checking is pixelExpr");
-        if (left.getType() == Type.PIXEL && right.getType() == Type.PIXEL){
-            System.out.println("True");
-            return true;
-        }
 
-        System.out.println("false");
-        return false;
-
-         */
         if (left.getType() == Type.PIXEL && right.getType() == Type.PIXEL){
             System.out.println("True");
             return true;
@@ -246,32 +321,27 @@ public class CodeGenVisitor implements ASTVisitor {
     @Override
     public Object visitChannelSelector(ChannelSelector channelSelector, Object arg) throws PLCCompilerException {
         Kind colorKind = channelSelector.color();
-        System.out.println("visited channel selc");
+        System.out.println("visited channel selector");
 
-        Expr baseExpr = (Expr) arg;
-
+        Expr baseExpr = (Expr) arg; // This should be the expression for the pixel selection
+        System.out.println(baseExpr.toString());
+        // Wrap the pixel selection expression with the appropriate PixelOps method
         switch (colorKind) {
             case RES_red:
                 generatedCode.append("PixelOps.red(");
-                baseExpr.visit(this, arg);
-                generatedCode.append(")");
                 break;
             case RES_green:
-                //baseExpr.visit(this, arg);
                 generatedCode.append("PixelOps.green(");
-                baseExpr.visit(this, arg);
-                generatedCode.append(")");
                 break;
             case RES_blue:
-                //baseExpr.visit(this, arg);
                 generatedCode.append("PixelOps.blue(");
-                baseExpr.visit(this, arg);
-                generatedCode.append(")");
                 break;
             default:
-                throw new PLCCompilerException("Unexpected color ");
-
+                throw new PLCCompilerException("Unexpected color");
         }
+
+        baseExpr.visit(this, arg); // This should generate the ImageOps.getRGB call
+        generatedCode.append(")"); // Close the PixelOps method call
 
         return null;
     }
@@ -289,98 +359,175 @@ public class CodeGenVisitor implements ASTVisitor {
 
     @Override
     public Object visitDeclaration(Declaration declaration, Object arg) throws PLCCompilerException {
-        System.out.println("visit declaration");
         NameDef nameDef = declaration.getNameDef();
-        String javaName = nameDef.getJavaName();
-        System.out.println("java name " + javaName);
+        //String varName = nameDef.getJavaName(); // Adjust as necessary for your variable naming
+        String varName = nameDef.getName();
+        Type varType = nameDef.getType();
 
-        String varType = translateType(declaration.getNameDef().getType());
-        String varName = declaration.getNameDef().getName();
-        //String scopedName = varName;
-        String scopedName = getScopedVariableName(varName);
-        //MODIFY VARIABLES THAT ARE USED IN OTHER SCOPES TO ADD A _ then the CURRSCOPE
-        if (scope.containsKey(varName)) {
-            scopedName = varName + "_" + currentScopeLevel;
+        System.out.println("varType: " + varType);
+        System.out.println("Initializer is BinaryExpr: " + (declaration.getInitializer() instanceof BinaryExpr));
+        System.out.println(declaration.getInitializer());
+        if (varType != Type.IMAGE || (varType == Type.IMAGE && declaration.getInitializer() instanceof BinaryExpr)) {
+            // Append type declaration for non-images or images initialized by a binary expression
+            alreadyUsed = true;
+            generatedCode.append(translateType(varType)).append(" ").append(nameDef.getName());
         }
-        scope.put(scopedName, currentScopeLevel);
 
-        generatedCode.append(varType).append(" ").append(scopedName);
+        //generatedCode.append(translateType(varType)).append(" ").append(varName);
+
 
         if (declaration.getInitializer() != null) {
-            generatedCode.append(" = ");
+            Expr initializer = declaration.getInitializer();
 
-            if (declaration.getNameDef().getType() == Type.IMAGE) {
-                System.out.println("ITS AN IMAGE");
-                Dimension dimension = declaration.getNameDef().getDimension();
-                Expr initializer = declaration.getInitializer();
-                Type initializerType = initializer.getType();
+            if (varType == Type.IMAGE) {
+                // Check if initializer is a binary expression, implying dimensions
+                if (initializer instanceof BinaryExpr) {
+                    System.out.println("Instance of binary \n");
+                    processImageOperation(initializer, arg, varName, alreadyUsed);
 
-                if (initializerType == Type.STRING) {
-                    // Handle string URL to BufferedImage assignment
-                    //generatedCode.append("BufferedImage ").append(varName).append(" = ");
+                    // Handle binary operation (e.g., image result = a + b)
 
-                    generatedCode.append("FileURLIO.readImage(");
-                    initializer.visit(this, arg);
+                }else {
+                    Dimension dimension = nameDef.getDimension();
                     if (dimension != null) {
-                        generatedCode.append(", ");
-                        dimension.getWidth().visit(this, arg);  // Visit width expression
-                        generatedCode.append(", ");
-                        dimension.getHeight().visit(this, arg); //
+                        if (declaration.getInitializer()!=null){System.out.println(declaration.getInitializer().getType().toString());}
+                        System.out.println("nah we in here");
+
+
+                        if (declaration.getInitializer().getType() == Type.IMAGE && varType == Type.IMAGE){
+
+                            generatedCode.append("BufferedImage ").append(varName);
+                            generatedCode.append(" = ImageOps.copyAndResize(");
+                        }
+                        else {
+                            generatedCode.append("BufferedImage ").append(varName).append(" = FileURLIO.readImage(");
+                        }
+
+                        initializer.visit(this,arg);
+                        generatedCode.append(",");
+                        dimension.getWidth().visit(this,arg);
+                        generatedCode.append(",");
+                        dimension.getHeight().visit(this,arg);
+                        //generatedCode.append(identExpr.getName());
+                        generatedCode.append(")");
                     }
+                    else {
+                        System.out.println("IN THE FIRST LOOP");
+                        //generatedCode.append("final BufferedImage ").append(varName).append(" = ImageOps.makeImage(");
+                        System.out.println(initializer.toString());
+                        //dimension.getWidth().visit(this, arg);  // Visit width expression
+                        if (declaration.getInitializer()!=null){System.out.println(declaration.getInitializer().getType().toString());}
+                        if (varType == Type.IMAGE && declaration.getInitializer().getType() == Type.IMAGE){
+                            generatedCode.append("BufferedImage ").append(varName).append(" = ImageOps.cloneImage(");
+                        }
+                        else {
+                            System.out.println("WE in this bitch");
+                            generatedCode.append("BufferedImage ").append(varName).append(" = FileURLIO.readImage(");
+
+                        }
+                        declaration.getInitializer().visit(this,arg);
+                        //generatedCode.append(identExpr.getName());
+                        generatedCode.append(")");
+                       // NameDef tempName = (NameDef) initializer.visit(this,arg);
+                        //generatedCode.append(", ");
+                        //dimension.getHeight().visit(this, arg); // Visit height expression
+
+                    }
+
+                }
+            } else {
+                // Handle non-image type initializations
+                generatedCode.append(" = ");
+                initializer.visit(this, arg);
+            }
+        }  else {
+            System.out.println("ELSE OPTION\n");
+            if (nameDef.getType() == Type.IMAGE) {
+                System.out.println("Type Image in visit declaration");
+                Dimension dimension = nameDef.getDimension();
+                if (dimension == null) {
+
+                    System.out.println("Null Dimension");
+
+                    generatedCode.append("BufferedImage ").append(varName).append(" = FileURLIO.readImage(");
+                    declaration.getInitializer().visit(this,arg);
+                    //generatedCode.append(identExpr.getName());
                     generatedCode.append(")");
-                } else if (initializerType == Type.IMAGE && dimension != null) {
-                    // Resize from another image variable
-                    //generatedCode.append("BufferedImage ").append(varName).append(" = ");
-                    generatedCode.append("ImageOps.copyAndResize(");
-                    initializer.visit(this, arg);
-                    generatedCode.append(", ");
+                }
+                else {
+                    System.out.println("Not null dimension");
+                    generatedCode.append("final BufferedImage ").append(varName).append(" = ImageOps.makeImage(");
                     dimension.getWidth().visit(this, arg);  // Visit width expression
                     generatedCode.append(", ");
                     dimension.getHeight().visit(this, arg); // Visit height expression
                     generatedCode.append(")");
-                } else {
-                    initializer.visit(this, arg);
                 }
-            } else {
-                declaration.getInitializer().visit(this, arg);
+
             }
         }
-        //PROCESS DIMENSION
 
-        //END
+        alreadyUsed = false;
         generatedCode.append(";");
         return null;
     }
+    private void processImageOperation(Expr initializer, Object arg, String varName, boolean alrUsed) throws PLCCompilerException {
+        BinaryExpr binaryExpr = (BinaryExpr) initializer;
+        Kind operator = binaryExpr.getOp().kind();
 
+        // Generate code for specific image operations
+
+        if (operator == Kind.PLUS && binaryExpr.getLeftExpr().getType() == Type.IMAGE && binaryExpr.getRightExpr().getType() == Type.IMAGE) {
+            // Generate code for image addition
+            if (!alrUsed){
+                generatedCode.append("BufferedImage ").append(varName);
+            }
+            generatedCode.append(" = ImageOps.cloneImage((");
+            generatedCode.append("ImageOps.binaryImageImageOp(ImageOps.OP.PLUS, ");
+            binaryExpr.getLeftExpr().visit(this, arg);
+            generatedCode.append(", ");
+            binaryExpr.getRightExpr().visit(this, arg);
+            generatedCode.append(")))");
+        }
+     }
     @Override
     public Object visitDimension(Dimension dimension, Object arg) throws PLCCompilerException {
+        System.out.println("Entered dimension");
+        Expr w = dimension.getWidth();
+        Expr h = dimension.getHeight();
+
+        Object width = w.visit(this,arg);
+        Object height = h.visit(this,arg);
+
+
         return null;
     }
 
     @Override
     public Object visitDoStatement(DoStatement doStatement, Object arg) throws PLCCompilerException {
-        List<GuardedBlock> guardedBlocks = doStatement.getGuardedBlocks(); // Assuming DoStatement has a list of GuardedBlocks
+        System.out.println("ENTERED DO STATEMENT");
 
+        // Declare the continue variable
         generatedCode.append("boolean continue$0 = false;\n");
+
+        // Start the loop
         generatedCode.append("while (!continue$0) {\n");
-        generatedCode.append("continue$0 = true;\n");
+        generatedCode.append("    continue$0 = true;\n");
 
-        for (GuardedBlock guardedBlock : guardedBlocks) {
-            Expr guard = guardedBlock.getGuard();
-            Block block = guardedBlock.getBlock();
-
-            generatedCode.append("if (");
-            guard.visit(this, arg);
-            generatedCode.append(") {\ncontinue$0 = false;\n");
-
-            block.visit(this, arg);
-            generatedCode.append("}\n");
+        for (GuardedBlock guardedBlock : doStatement.getGuardedBlocks()) {
+            // Visit the guarded block, which handles the condition and the block of code
+            guardedBlock.visit(this, arg);
         }
 
+        // End the loop
         generatedCode.append("}\n");
+
         return null;
     }
 
+    private String uniqueVarName(String base) {
+        // Generate a unique variable name
+        return base + "_" + UUID.randomUUID().toString().replace("-", "");
+    }
     @Override
     public Object visitExpandedPixelExpr(ExpandedPixelExpr expandedPixelExpr, Object arg) throws PLCCompilerException {
         //(ImageOps.binaryPackedPixelPixelOp(ImageOps.OP.PLUS,0xffff0000,PixelOps.pack(33,33,33)));
@@ -402,9 +549,37 @@ public class CodeGenVisitor implements ASTVisitor {
 
     @Override
     public Object visitGuardedBlock(GuardedBlock guardedBlock, Object arg) throws PLCCompilerException {
+        // Generate the if condition for the guarded block
+        generatedCode.append("    if (");
+        guardedBlock.getGuard().visit(this, arg); // Append the guard condition to generatedCode
+        generatedCode.append(") {\n");
+
+        // Visit the block of the guarded block
+        guardedBlock.getBlock().visit(this, arg);
+
+        // Check if the block ends with a return statement
+        if (!blockEndsWithReturn(guardedBlock.getBlock())) {
+            // Only set continue$0 to false if the block does not end with a return statement
+            generatedCode.append("        continue$0 = false;\n");
+        }
+
+        generatedCode.append("    }\n");
+
         return null;
     }
+    private boolean blockEndsWithReturn(Block block) {
+        List<Block.BlockElem> elements = block.getElems();
 
+        if (!elements.isEmpty()) {
+            Block.BlockElem lastElement = elements.get(elements.size() - 1);
+
+            // Assuming 'ReturnStatement' is a subclass of BlockElem that represents return statements
+            // You'll need to replace 'ReturnStatement' with the actual class name used in your AST
+            return lastElement instanceof ReturnStatement;
+        }
+
+        return false;
+    }
     @Override
     public Object visitIdentExpr(IdentExpr identExpr, Object arg) throws PLCCompilerException {
 
@@ -412,29 +587,34 @@ public class CodeGenVisitor implements ASTVisitor {
         System.out.println("Visit ident " + varName);
 
         NameDef nameDef = identExpr.getNameDef(); // Get linked NameDef
-        String javaName = nameDef.getJavaName();
-        System.out.println("Java name " + javaName);
+        //String javaName = nameDef.getJavaName();
+       // System.out.println("Java name " + javaName);
+
+
 
         if (isJavaReservedKeyword(varName)) {
             varName += "_";
         }
 
+
+
         //String resolvedVarName = varName;
-        String resolvedVarName = getScopedVariableName(varName);
-        for (int currScope = currentScopeLevel; currScope >= 0; currScope--) {
-            String scopedVarName = varName + "_" + currScope;
-            if (scope.containsKey(scopedVarName)) {
-                resolvedVarName = scopedVarName;
-                break;
-            }
-        }
-        System.out.println(resolvedVarName);
-        generatedCode.append(resolvedVarName);
+        //String resolvedVarName = getScopedVariableName(varName);
+        //for (int currScope = currentScopeLevel; currScope >= 0; currScope--) {
+        //    String scopedVarName = varName + "_" + currScope;
+        //    if (scope.containsKey(scopedVarName)) {
+       //         resolvedVarName = scopedVarName;
+        //        break;
+       //     }
+      //  }
+        //System.out.println(resolvedVarName);
+        generatedCode.append(varName);
         return null;
     }
 
     @Override
     public Object visitIfStatement(IfStatement ifStatement, Object arg) throws PLCCompilerException {
+        System.out.println("visited if");
         List<GuardedBlock> guardedBlocks = ifStatement.getGuardedBlocks();
         boolean isFirstBlock = true;
 
@@ -472,11 +652,13 @@ public class CodeGenVisitor implements ASTVisitor {
     public Object visitLValue(LValue lValue, Object arg) throws PLCCompilerException {
         System.out.println("visit lvalue");
         String varName = lValue.getName();
+        //System.out.println(lValue.getType().toString());
         if (isJavaReservedKeyword(varName)) {
             varName += "_";
         }
         String scopedVarName = getScopedVariableName(varName);
-        generatedCode.append(scopedVarName);
+        generatedCode.append(lValue.getNameDef().getName());
+        //generatedCode.append(scopedVarName);
         return null;
     }
 
@@ -496,6 +678,7 @@ public class CodeGenVisitor implements ASTVisitor {
     public Object visitPixelSelector(PixelSelector pixelSelector, Object arg) throws PLCCompilerException {
         String colorName = pixelSelector.toString().toUpperCase();
         System.out.println("visited pixelselector");
+        System.out.println(colorName.toString());
         switch (colorName) {
             case "RED":
 
@@ -511,7 +694,12 @@ public class CodeGenVisitor implements ASTVisitor {
                 break;
 
             default:
-                throw new PLCCompilerException("Unsupported color: " + colorName);
+                //System.out.println(pixelSelector.xExpr().getType().toString());
+                if (pixelSelector.xExpr().getType() == Type.INT){
+                    //generatedCode.append("edu.ufl.cise.cop4020fa23.runtime.PixelOps.pack(");
+
+                }
+                //throw new PLCCompilerException("Unsupported color: " + colorName);
         }
         return null;
     }
@@ -523,26 +711,96 @@ public class CodeGenVisitor implements ASTVisitor {
 
         Expr primaryExpr = postfixExpr.primary();
         //primaryExpr.visit(this, arg);
-
         // check if there is a channel selector         expandedPixelExpr.getRed().visit(this, arg);
-        if (postfixExpr.channel() != null) {
-            System.out.println("Channel exists");
-            ChannelSelector channelSelector = postfixExpr.channel();
-            visitChannelSelector(channelSelector, primaryExpr);
+        //Before check f PixelSelector != null && ChannelSelector ==null
+        if (postfixExpr.channel() == null && postfixExpr.pixel() !=null) {
+            System.out.println("ImageOps.getRGB");
+            generatedCode.append("ImageOps.getRGB(");
 
+            primaryExpr.visit(this, arg); // This should append the image reference to generatedCode
+            generatedCode.append(",");
+
+            PixelSelector pixelSelector = postfixExpr.pixel();
+            Expr xExpr = pixelSelector.xExpr(); // Assuming X() method returns the x coordinate expression
+            Expr yExpr = pixelSelector.yExpr(); // Assuming Y() method returns the y coordinate expression
+            xExpr.visit(this, arg); // This should append the x coordinate to generatedCode
+            generatedCode.append(",");
+            yExpr.visit(this, arg); // This should append the y coordinate to generatedCode
+
+            generatedCode.append(")");
 
         }
-        if (postfixExpr.pixel() !=null){
-            System.out.println("Pixel exists");
-            PixelSelector pixelSelector = postfixExpr.pixel();
-            visitPixelSelector(pixelSelector, primaryExpr);
+        //return PixelOps.red(ImageOps.getRGB(i$2,x$1,y$1));
+        else if (postfixExpr.channel() != null && postfixExpr.pixel() != null){
+            //If PixelSelector != null && ChannelSelector != null,generate code to get the value of the pixel at theindicated location and to invoke PixelOps.red, PixelOps.green, or PixelOps.blue.
+            System.out.println("Both Pixel and Channel exist");
+            switch (postfixExpr.channel().color()) {
+                case RES_red:
+                    generatedCode.append("PixelOps.red(");
+                    break;
+                case RES_green:
+                    generatedCode.append("PixelOps.green(");
+                    break;
+                case RES_blue:
+                    generatedCode.append("PixelOps.blue(");
+                    break;
+                default:
+                    throw new PLCCompilerException("Unexpected color");
+            }
+
+            // Now build and append the 'ImageOps.getRGB(' part
+            generatedCode.append("ImageOps.getRGB(");
+            postfixExpr.primary().visit(this, arg); // Append the image reference
+            generatedCode.append(", ");
+            postfixExpr.pixel().xExpr().visit(this, arg); // Append the x coordinate
+            generatedCode.append(", ");
+            postfixExpr.pixel().yExpr().visit(this, arg); // Append the y coordinate
+            generatedCode.append("))"); // Close both the PixelOps and ImageOps calls
+
+        }
+        else if (postfixExpr.channel() != null && postfixExpr.pixel() ==null && primaryExpr.getType() != Type.PIXEL){
+            System.out.println("Channel exists but Pixel Selector is null");
+            System.out.println(primaryExpr.getType().toString());
+            ChannelSelector channelSelector = postfixExpr.channel();
+            Kind colorKind = channelSelector.color();
+
+            switch (colorKind) {
+                case RES_red:
+                    generatedCode.append("ImageOps.extractRed(");
+                    break;
+                case RES_green:
+                    generatedCode.append("ImageOps.extractGreen(");
+                    break;
+                case RES_blue:
+                    generatedCode.append("ImageOps.extractBlue(");
+                    break;
+                default:
+                    throw new PLCCompilerException("Unexpected color channel");
+            }
+
+            postfixExpr.primary().visit(this, arg); // Assuming this appends the image reference
+            generatedCode.append(")"); // Close the method call
+        }
+        else{
+            if (postfixExpr.channel() != null) {
+                System.out.println("Channel exists");
+                ChannelSelector channelSelector = postfixExpr.channel();
+                visitChannelSelector(channelSelector, primaryExpr);
+
+
+            }
+            if (postfixExpr.pixel() != null) {
+                System.out.println("Pixel exists");
+                PixelSelector pixelSelector = postfixExpr.pixel();
+                visitPixelSelector(pixelSelector, primaryExpr);
+            }
         }
         return null;
     }
 
     @Override
     public Object visitProgram(Program program, Object arg) throws PLCCompilerException {
-
+        System.out.println("ENTERING CODE GEN \n\n");
         //PACKAGE NAME
         String packageName = (String) arg;
         String className = program.getNameToken().text();
@@ -654,7 +912,7 @@ public class CodeGenVisitor implements ASTVisitor {
 
             return "BufferedImage";
         }
-
+        System.out.println("returning void");
         return "void"; // void = default
     }
 
@@ -663,6 +921,7 @@ public class CodeGenVisitor implements ASTVisitor {
         System.out.println("visit return");
         generatedCode.append("return ");
         if (returnStatement.getE() != null) {
+            System.out.println(returnStatement.getE().toString());
             returnStatement.getE().visit(this, arg);
         } else {
 
@@ -694,10 +953,23 @@ public class CodeGenVisitor implements ASTVisitor {
                 unaryExpr.getExpr().visit(this, arg);
                 generatedCode.append(")");
             }
+
         } else if (op == Kind.BANG){
 
             generatedCode.append("!");
             unaryExpr.getExpr().visit(this,arg);
+        }
+        else if (op == Kind.RES_width){
+            //generatedCode.append("")
+            generatedCode.append("(");
+            unaryExpr.getExpr().visit(this,arg);
+            generatedCode.append(".getWidth())");
+
+        }
+        else if ( op == Kind.RES_height){
+            generatedCode.append("(");
+            unaryExpr.getExpr().visit(this,arg);
+            generatedCode.append(".getHeight())");
         }
         else {
             //continue later
@@ -708,7 +980,23 @@ public class CodeGenVisitor implements ASTVisitor {
     @Override
     public Object visitWriteStatement(WriteStatement writeStatement, Object arg) throws PLCCompilerException {
         System.out.println("Visit write statement");
-        generatedCode.append("ConsoleIO.write(");
+        generatedCode.append("ConsoleIO.write");
+
+        if (writeStatement.getExpr() instanceof IdentExpr){
+
+            IdentExpr identExpr = (IdentExpr) writeStatement.getExpr();
+            NameDef nameDef = identExpr.getNameDef(); // Get linked NameDef
+            if (nameDef.getType() == Type.PIXEL){
+                generatedCode.append("Pixel(");
+            }
+            else {
+                generatedCode.append("(");
+            }
+        }
+        else {
+            generatedCode.append("(");
+        }
+
         writeStatement.getExpr().visit(this, arg);
         generatedCode.append(");");
         return null;
@@ -724,7 +1012,7 @@ public class CodeGenVisitor implements ASTVisitor {
 
     @Override
     public Object visitConstExpr(ConstExpr constExpr, Object arg) throws PLCCompilerException {
-        System.out.println("Visitn const");
+        System.out.println("Visit const");
         char checker = constExpr.getName().toCharArray()[0];
         if (checker == 'Z'){
             //System.out.println("Z");
@@ -775,6 +1063,8 @@ public class CodeGenVisitor implements ASTVisitor {
             case "DARK_GRAY":
                 generatedCode.append("0x" + Integer.toHexString(Color.DARK_GRAY.getRGB()));
                 break;
+            case "WIDTH":
+
 
         }
         return null;
